@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Loader2, ScanText, Image as ImageIcon, Sparkles, Wrench, ChevronDown, ChevronUp, Key, UploadCloud, X } from 'lucide-react'
+import { Loader2, ScanText, Image as ImageIcon, Sparkles, Wrench, ChevronDown, ChevronUp, Key, UploadCloud, X, AlertTriangle } from 'lucide-react'
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { analyzeText } from '@/lib/textAnalysis'
 import { analyzeImage } from '@/lib/imageAnalysis'
 import { enhanceWithGroq } from '@/lib/groqClient'
 import { saveAnalysis, generateId } from '@/lib/storage'
+import { matchesCrisis, logMediaAlert } from '@/lib/crisis'
 import type { AnalysisResult } from '@/lib/types'
 
 const SAMPLE_TEXTS = [
@@ -40,6 +41,7 @@ export default function Analyzer() {
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [crisisAlert, setCrisisAlert] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const saveKey = (key: string) => {
@@ -122,6 +124,20 @@ export default function Analyzer() {
 
       saveAnalysis(finalResult)
       setResult(finalResult)
+
+      // Check for crisis keywords
+      if (activeTab === 'text') {
+        const crisis = matchesCrisis(text)
+        if (crisis) {
+          setCrisisAlert(crisis.title)
+          logMediaAlert(
+            text.slice(0, 100),
+            crisis,
+            finalResult.id,
+            finalResult.trustScore
+          )
+        }
+      }
     } catch (err) {
       console.error(err)
       setError('Analysis failed. Please try again.')
@@ -271,6 +287,17 @@ export default function Analyzer() {
             <Alert variant="destructive">
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {crisisAlert && (
+            <Alert variant="destructive" className="border-red-300">
+              <AlertTriangle className="size-4" />
+              <AlertTitle>🚨 Crisis Mode Alert</AlertTitle>
+              <AlertDescription>
+                This content matches an active monitoring alert: <strong>{crisisAlert}</strong>. 
+                Check the Crisis Mode page for related verification efforts.
+              </AlertDescription>
             </Alert>
           )}
 
