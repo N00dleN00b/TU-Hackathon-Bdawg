@@ -1,0 +1,43 @@
+{
+  "name": "RealityCheck",
+  "short_name": "RealityCheck",
+  "description": "The Shazam for disinformation. Detect deepfakes, AI-generated media, and manipulation in seconds — free, private, in your browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "orientation": "any",
+  "categories": ["news", "utilities", "education"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    }
+  ],
+  "share_target": {
+    "action": "/analyze",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "Analyze Content",
+      "short_name": "Analyze",
+      "url": "/analyze",
+      "description": "Open the analyzer to verify media"
+    },
+    {
+      "name": "Crisis Mode",
+      "short_name": "Crisis",
+      "url": "/crisis",
+      "description": "Monitor breaking news for misinformation"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Loader2, ScanText, Image as ImageIcon, Sparkles, Wrench,
   ChevronDown, ChevronUp, Key, UploadCloud, X, AlertTriangle,
@@ -115,6 +116,22 @@ export default function Analyzer() {
   const [crisisAlert, setCrisisAlert] = useState<string | null>(null)
   const [reportingPlatform, setReportingPlatform] = useState<string | null>(null)
   const [reportedPlatforms, setReportedPlatforms] = useState<Set<string>>(new Set())
+
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Handle Web Share Target and browser-extension deep links
+  // e.g. /analyze?text=...  or  /analyze?url=https://...
+  useEffect(() => {
+    const sharedText = searchParams.get('text')
+    const sharedUrl = searchParams.get('url')
+    const sharedTitle = searchParams.get('title')
+    if (sharedText || sharedUrl) {
+      const combined = [sharedTitle, sharedText, sharedUrl].filter(Boolean).join('\n\n')
+      setText(combined)
+      setActiveTab('text')
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveKey = (key: string) => {
     setGroqKey(key)

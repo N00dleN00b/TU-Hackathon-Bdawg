@@ -1,17 +1,17 @@
 # TruthLens Optimization Roadmap
 
-## Phase 1: MVP Enhancements (This Session)
+## Phase 1: MVP Enhancements
 ### Quick Wins
-- [ ] **Community Voting System** — User credibility voting with reputation weighting
-- [ ] **Crisis Mode Detection** — Viral spike detection for trending/breaking news
-- [ ] **Barebone AI Assistant** — Keyword-based hardcoded responses (no external API)
-- [ ] **Browser Extension Scaffold** — Basic Chrome extension with overlay
-- [ ] **C2PA/CAI Integration** — Read C2PA manifests for authenticated media
+- [x] **Community Voting System** — User credibility voting with reputation weighting
+- [x] **Crisis Mode Detection** — Viral spike detection for trending/breaking news
+- [x] **AI Assistant** — Keyword-based + optional Groq LLM mode (upgraded)
+- [ ] **Browser Extension Scaffold** — Basic Chrome extension with overlay *(not started)*
+- [x] **C2PA/CAI Integration** — Read C2PA manifests for authenticated media
 
 ### Why These First?
 - **Community Voting**: Multiplies your verification power 10x. Users become validators.
 - **Crisis Mode**: Real-time response to viral misinformation (elections, scandals, etc.)
-- **AI Assistant**: Gives interactive guidance without backend complexity
+- **AI Assistant**: Gives interactive guidance; now Groq-powered when a key is available
 - **Extension**: Forces social media integration (Instagram, X, Reddit)
 - **C2PA**: Industry standard—adds legitimacy + real provenance data
 
@@ -19,31 +19,35 @@
 
 ## Phase 2: Multimodal Detection Engine
 ### Components
-- [ ] **GAN Fingerprinting** — Detect AI-generated images via artifact detection
-- [ ] **Metadata Anomalies** — Comprehensive EXIF/forensics analysis
+- [x] **GAN Fingerprinting** — `lib/gan-fingerprint.ts` — artifact-based AI image detection
+- [x] **Audio Waveform Forensics** — `lib/audio-forensics.ts` — spectral + ZCR + noise floor + pitch analysis
+- [x] **Video Frame Analysis** — `lib/video-detection.ts` — frame anomaly timeline, facial swap detection
+- [x] **Confidence Tier Labels** — VideoResultCard + AudioResultCard now show tier badges + disclosure text
+- [ ] **Metadata Anomalies** — Comprehensive EXIF/forensics analysis (partial in imageAnalysis)
 - [ ] **Reverse Image Search** — Integrate TinEye/Google Images API
-- [ ] **Heatmap Visualization** — Show manipulated regions
+- [ ] **Heatmap Visualization** — Show manipulated regions on image
 - [ ] **Facial Recognition Inconsistencies** — Eye positions, skin tone shifts, face geometry
-- [ ] **Audio Waveform Anomalies** — Spectral analysis for voice cloning/synthetic audio
 
 ### Tech Stack
 - **Image Analysis**: TensorFlow.js (GAN fingerprint model)
-- **Audio Analysis**: Web Audio API + spectral analysis
-- **Visualization**: Canvas/WebGL for heatmaps
+- **Audio Analysis**: Web Audio API + spectral analysis ✅
+- **Video**: HTML5 video metadata + heuristic frame simulation ✅
+- **Visualization**: Canvas/WebGL for heatmaps *(next up)*
 - **External APIs**: TinEye (paid tier), Google Safe Browsing
 
 ---
 
 ## Phase 3: Video & Media Expansion
 ### Features
-- [ ] **Video Frame-by-Frame Analysis** — Apply image detection to each frame
+- [x] **Video Upload + Heuristic Analysis** — MP4/WebM/MOV supported, frame timeline UI
+- [ ] **Real Frame Extraction** — Replace simulation with FFmpeg.wasm frame sampling
 - [ ] **Optical Flow Detection** — Unnatural motion patterns
-- [ ] **Audio Sync Check** — Lip-sync analysis (deepfake indicator)
+- [ ] **Audio Sync Check** — Lip-sync analysis (requires combined video+audio decode)
 - [ ] **Scene Cut Detection** — Unusual edits/transitions
 - [ ] **Temporal Consistency** — Lighting/shadow changes over time
 
 ### Tech
-- **FFmpeg.wasm** — Client-side video processing
+- **FFmpeg.wasm** — Client-side video processing *(replaces simulation)*
 - **OpenCV.js** — Optical flow & temporal analysis
 
 ---
@@ -77,65 +81,62 @@
 
 ---
 
-## MVP Architecture (Phase 1 Focus)
+## Next Up (Recommended Order by Impact)
 
-```
-TruthLens/
-├── extension/                 # Chrome extension structure
-│   ├── manifest.json
-│   ├── content.js            # Overlay injection
-│   ├── background.js         # Service worker
-│   └── popup.html
-├── src/
-│   ├── features/
-│   │   ├── community/        # Voting system
-│   │   ├── crisis/           # Viral detection
-│   │   ├── ai-assistant/     # Keyword responses
-│   │   ├── c2pa/             # CAI/C2PA parser
-│   │   └── reputation/       # User scoring
-│   ├── lib/
-│   │   ├── forensics.ts      # Enhanced analysis
-│   │   └── c2pa-parser.ts    # Manifest parsing
-│   └── pages/
-│       ├── Community.tsx
-│       ├── CrisisMode.tsx
-│       └── Assistant.tsx
-└── backend/                   # (Phase 2+) 
-    ├── api/
-    ├── models/
-    └── db/
-```
+| Feature | Effort | Impact | Notes |
+|---------|--------|--------|-------|
+| Browser Extension scaffold | Medium | Very High | Overlay on X/Instagram/Reddit — biggest reach |
+| Real FFmpeg.wasm video frames | Medium | High | Replaces simulation with actual frame data |
+| Heatmap overlay on images | Medium | High | Visualizes GAN artifact regions |
+| Reverse image search (TinEye) | Low | High | One API call, massive credibility signal |
+| EXIF deep-dive UI | Low | Medium | Already partially in imageAnalysis, just needs UI |
+| Backend reputation DB | High | High | Centralizes community data across users |
+| Lip-sync check (video+audio) | High | High | Real deepfake detection when both tracks present |
+
+### Easiest wins right now:
+1. **Reverse image search button** — Add a "Search on TinEye / Google Images" link to image results. Zero backend needed.
+2. **EXIF metadata panel** — Surface the raw EXIF from `imageAnalysis.ts` in a collapsible card on the image result.
+3. **"Copy to Analyzer" in Assistant** — Let users paste a claim in the chat and have a button send it to the Analyzer tab.
+4. **Crisis Mode real API** — Swap hardcoded alerts for a GDELT or NewsAPI call so Crisis Mode shows live events.
+5. **Extension scaffold** — Even a barebones `manifest.json` + content script that adds a "Check with TruthLens" button on X/Reddit posts would be a huge demo feature.
 
 ---
 
-## Implementation Priority by Impact
+## MVP Architecture (Current State)
 
-| Feature | Effort | Impact | Timeline |
-|---------|--------|--------|----------|
-| Community Voting | Low | Very High | 3-4 hrs |
-| Crisis Mode | Low-Med | High | 2-3 hrs |
-| AI Assistant | Low | Medium | 1-2 hrs |
-| Extension (Basic) | Medium | Very High | 4-5 hrs |
-| C2PA Integration | Medium | High | 3-4 hrs |
-| GAN Detection | High | High | 6-8 hrs |
-| Video Support | High | High | 8-10 hrs |
-| Audio Analysis | High | Medium | 5-6 hrs |
-
----
-
-## Next Steps
-1. **Start with Community Voting** — Add vote UI to History page
-2. **Crisis Mode Dashboard** — Real-time trending detection
-3. **AI Assistant Chat** — Keyword-based response engine
-4. **Extension Scaffold** — Basic overlay + badge system
-5. **C2PA Reader** — Parse and display authenticity manifests
+```
+Fall-2026/
+└── src/
+    ├── lib/
+    │   ├── textAnalysis.ts       ✅ 11-signal text scoring
+    │   ├── imageAnalysis.ts      ✅ EXIF + GAN fingerprinting
+    │   ├── video-detection.ts    ✅ Frame heuristic + timeline
+    │   ├── audio-forensics.ts    ✅ Spectral + ZCR + noise analysis
+    │   ├── gan-fingerprint.ts    ✅ Artifact detection
+    │   ├── groqClient.ts         ✅ AI enhancement for text
+    │   ├── ai-assistant.ts       ✅ Keyword + Groq chat
+    │   ├── community.ts          ✅ Voting & reputation
+    │   ├── crisis.ts             ✅ Viral alert system
+    │   ├── c2pa.ts               ✅ Content authenticity
+    │   └── storage.ts            ✅ Local history
+    ├── pages/
+    │   ├── Analyzer.tsx          ✅ Text / Image / Video / Audio
+    │   ├── Dashboard.tsx         ✅ Stats overview
+    │   ├── History.tsx           ✅ Past analyses
+    │   ├── Learn.tsx             ✅ Media literacy hub
+    │   ├── Community.tsx         ✅ Voting UI
+    │   ├── CrisisMode.tsx        ✅ Alert dashboard
+    │   └── Assistant.tsx         ✅ Chat (keyword + Groq)
+    └── components/
+        ├── VideoResultCard.tsx   ✅ + confidence tier + disclosure
+        └── AudioResultCard.tsx   ✅ + confidence tier + disclosure
+```
 
 ---
 
 ## Questions to Clarify
-- Do you want the backend/reputation system now or later?
-- Should Crisis Mode use real Twitter/TikTok APIs or mock data for demo?
-- For the extension, priority: Instagram > Reddit > X > Other?
-- GAN fingerprinting: Use pretrained models or train custom?
-- Budget constraints on API calls (Google Safe Browsing, TinEye)?
-
+- Browser extension: priority platform? Instagram > Reddit > X > Other?
+- Crisis Mode: use real GDELT/NewsAPI or keep demo alerts?
+- GAN model: integrate pretrained TensorFlow.js model or keep heuristic?
+- Budget for API calls (TinEye, Google Safe Browsing, NewsAPI)?
+- Backend timeline: needed before or after hackathon demo?

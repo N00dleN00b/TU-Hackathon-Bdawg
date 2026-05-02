@@ -6,6 +6,7 @@ import {
     Users,
     AlertTriangle,
     Bot,
+    Compass,
     LucideIcon
 } from 'lucide-react'
 
@@ -53,5 +54,10 @@ export const mainMenu: MenuType = [
         title: 'Assistant',
         url: '/assistant',
         icon: Bot,
+    },
+    {
+        title: 'Roadmap',
+        url: '/roadmap',
+        icon: Compass,
     },
 ]
