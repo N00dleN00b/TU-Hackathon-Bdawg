@@ -308,10 +308,10 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
   // ---- EXIF scoring ----
   let score = 70
   if (isJpeg && !exif.hasExif) score -= 25
-  if (aiSoftware) score -= 40
+  if (aiSoftware) score -= 70
   if (!exif.make && !exif.model && exif.hasExif) score -= 10
   if (isFutureDate) score -= 25
-  if (suspiciousName) score -= 15   // was -5; generic filenames are a strong signal
+  if (suspiciousName) score -= 5   // was -5; generic filenames are a strong signal
   if (tinyFile) score -= 12         // tiny JPEG = likely web thumbnail or AI output
   if (exif.gpsLatitude !== undefined) score += 10
   if (exif.make || exif.model) score += 10
