@@ -3,6 +3,9 @@ import {
     ScanText,
     History,
     BookOpen,
+    Users,
+    AlertTriangle,
+    Bot,
     LucideIcon
 } from 'lucide-react'
 
@@ -35,5 +38,20 @@ export const mainMenu: MenuType = [
         title: 'Learn',
         url: '/learn',
         icon: BookOpen,
+    },
+    {
+        title: 'Community',
+        url: '/community',
+        icon: Users,
+    },
+    {
+        title: 'Crisis Mode',
+        url: '/crisis',
+        icon: AlertTriangle,
+    },
+    {
+        title: 'Assistant',
+        url: '/assistant',
+        icon: Bot,
     },
 ]

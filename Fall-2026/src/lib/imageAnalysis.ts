@@ -1,4 +1,5 @@
 import type { Signal, Verdict, AnalysisResult } from './types'
+import { analyzeForGAN } from './gan-fingerprint'
 
 // ---- Minimal JPEG EXIF parser (no external dependencies) ----
 
@@ -34,7 +35,6 @@ function readString(view: DataView, offset: number, length: number): string {
 function parseExif(buffer: ArrayBuffer): ExifData {
   const view = new DataView(buffer)
 
-  // Must be JPEG (starts with FF D8)
   if (view.byteLength < 4 || view.getUint16(0) !== 0xFFD8) {
     return { hasExif: false }
   }
@@ -45,7 +45,6 @@ function parseExif(buffer: ArrayBuffer): ExifData {
     const marker = view.getUint8(offset + 1)
     const segmentLength = view.getUint16(offset + 2)
 
-    // APP1 marker (0xE1) contains EXIF
     if (marker === 0xE1 && segmentLength > 6) {
       const exifHeader = readString(view, offset + 4, 4)
       if (exifHeader === 'Exif') {
@@ -53,8 +52,7 @@ function parseExif(buffer: ArrayBuffer): ExifData {
       }
     }
 
-    // Skip past this segment
-    if (marker === 0xD9 || marker === 0xDA) break // EOI or SOS
+    if (marker === 0xD9 || marker === 0xDA) break
     offset += 2 + segmentLength
   }
 
@@ -64,12 +62,11 @@ function parseExif(buffer: ArrayBuffer): ExifData {
 function parseExifIFD(view: DataView, tiffStart: number, _buffer: ArrayBuffer): ExifData {
   try {
     const byteOrder = view.getUint16(tiffStart)
-    const littleEndian = byteOrder === 0x4949 // 'II' = little endian
+    const littleEndian = byteOrder === 0x4949
 
     const read16 = (offset: number) => view.getUint16(tiffStart + offset, littleEndian)
     const read32 = (offset: number) => view.getUint32(tiffStart + offset, littleEndian)
 
-    // TIFF magic should be 42
     if (read16(2) !== 42) return { hasExif: true }
 
     const ifdOffset = read32(4)
@@ -98,12 +95,11 @@ function parseExifIFD(view: DataView, tiffStart: number, _buffer: ArrayBuffer): 
 
       const readValue = (): string | number => {
         if (type === 2) {
-          // ASCII string
           const strOffset = count <= 4 ? tiffStart + valueOffset : tiffStart + read32(valueOffset)
           return readString(view, strOffset, count)
         }
-        if (type === 3) return read16(valueOffset)  // SHORT
-        if (type === 4) return read32(valueOffset)  // LONG
+        if (type === 3) return read16(valueOffset)
+        if (type === 4) return read32(valueOffset)
         return ''
       }
 
@@ -116,11 +112,10 @@ function parseExifIFD(view: DataView, tiffStart: number, _buffer: ArrayBuffer): 
         case TAG.XResolution: result.xResolution = readValue() as number; break
         case TAG.YResolution: result.yResolution = readValue() as number; break
         case TAG.GPSInfoIFDPointer: {
-          // GPS sub-IFD exists — presence alone indicates GPS data
           const gpsOffset = read32(valueOffset)
           const gpsEntries = read16(gpsOffset)
           if (gpsEntries > 0) {
-            result.gpsLatitude = 0  // Non-null signals GPS present
+            result.gpsLatitude = 0
             result.gpsLongitude = 0
           }
           break
@@ -149,6 +144,35 @@ async function getImageDimensions(file: File): Promise<{ width: number; height: 
   })
 }
 
+// Renders the image into a canvas (capped at 512px) to get pixel data for GAN analysis.
+async function getImageData(file: File): Promise<ImageData | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      try {
+        const maxDim = 512
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth || 1, img.naturalHeight || 1))
+        const w = Math.max(1, Math.round(img.naturalWidth * scale))
+        const h = Math.max(1, Math.round(img.naturalHeight * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve(null); return }
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(ctx.getImageData(0, 0, w, h))
+      } catch {
+        resolve(null)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+    img.src = url
+  })
+}
+
 function isAiGeneratedSoftware(software?: string): boolean {
   if (!software) return false
   const lower = software.toLowerCase()
@@ -167,7 +191,12 @@ function isSuspiciousFileName(name: string): boolean {
 export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id' | 'timestamp' | 'aiEnhanced'>> {
   const buffer = await file.arrayBuffer()
   const exif = parseExif(buffer)
-  const dims = await getImageDimensions(file)
+
+  // Kick off parallel async operations
+  const [dims, imageData] = await Promise.all([
+    getImageDimensions(file),
+    getImageData(file),
+  ])
 
   const fileSizeMB = file.size / (1024 * 1024)
   const isJpeg = file.type === 'image/jpeg' || file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')
@@ -190,8 +219,8 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
       description: exif.hasExif
         ? 'EXIF metadata found. Authentic photos typically contain camera and device information.'
         : isJpeg
-          ? 'JPEG without EXIF metadata. AI-generated images and edited deepfakes commonly have their EXIF stripped.'
-          : `${isPng ? 'PNG' : 'Image'} files rarely contain EXIF data — this is normal.`
+          ? 'JPEG without EXIF metadata. Important context: social media platforms (Instagram, X, Facebook), messaging apps (WhatsApp, iMessage, Telegram), and most websites automatically strip EXIF from all images — so missing EXIF is the norm for anything downloaded online. This flag is only meaningful if you have strong reason to believe this image came directly from a camera and was never shared digitally first.'
+          : `${isPng ? 'PNG' : 'Image'} files rarely contain EXIF data — this is normal and expected.`
     },
     {
       id: 'camera_info',
@@ -273,9 +302,8 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
     }
   ]
 
-  // ---- Scoring ----
+  // ---- EXIF scoring ----
   let score = 70
-
   if (isJpeg && !exif.hasExif) score -= 25
   if (aiSoftware) score -= 40
   if (!exif.make && !exif.model && exif.hasExif) score -= 10
@@ -284,7 +312,72 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
   if (exif.gpsLatitude !== undefined) score += 10
   if (exif.make || exif.model) score += 10
   if (exif.dateTime) score += 5
-  if (!isJpeg) score += 5 // non-JPEG less suspicious for missing EXIF
+  if (!isJpeg) score += 5
+
+  const manipulationTools: string[] = []
+  if (aiSoftware && exif.software) manipulationTools.push(exif.software)
+  if (isJpeg && !exif.hasExif) {
+    manipulationTools.push('Deepfake generation tools (EXIF stripped)')
+    manipulationTools.push('Face swap software (e.g., DeepFaceLab, FaceSwap)')
+  }
+
+  // ---- GAN fingerprinting ----
+  let ganConfidence = 0
+  let ganIsAI = false
+  let ganArtifactNames: string[] = []
+
+  if (imageData) {
+    try {
+      const gan = await analyzeForGAN(imageData)
+      ganConfidence = gan.confidence
+      ganIsAI = gan.isLikelyAI
+      ganArtifactNames = gan.artifacts.map(a => a.name)
+
+      signals.push(
+        {
+          id: 'gan_frequency',
+          category: 'AI Detection',
+          label: 'GAN Frequency Artifacts',
+          severity: 'high',
+          found: gan.signals.find(s => s.type === 'frequency')?.detected ?? false,
+          description: gan.signals.find(s => s.type === 'frequency')?.detected
+            ? 'Repeating frequency patterns detected — typical of DALL-E, Midjourney, and Stable Diffusion outputs.'
+            : 'No significant frequency artifacts found. Image frequency domain appears natural.'
+        },
+        {
+          id: 'gan_symmetry',
+          category: 'AI Detection',
+          label: 'Unnatural Symmetry Bias',
+          severity: 'high',
+          found: gan.signals.find(s => s.type === 'symmetry')?.detected ?? false,
+          description: gan.signals.find(s => s.type === 'symmetry')?.detected
+            ? 'Bilateral symmetry significantly above natural range. GAN-generated faces are often unnaturally symmetric.'
+            : 'Symmetry levels within normal range for real photographs.'
+        },
+        {
+          id: 'gan_texture',
+          category: 'AI Detection',
+          label: 'Texture Synthesis Errors',
+          severity: 'medium',
+          found: gan.signals.find(s => s.type === 'texture')?.detected ?? false,
+          description: gan.signals.find(s => s.type === 'texture')?.detected
+            ? 'Repeating texture blocks detected — a hallmark of image synthesis models.'
+            : 'Texture patterns appear natural with no repeating synthesis artifacts.'
+        }
+      )
+
+      if (ganIsAI) {
+        score -= 20
+        if (!manipulationTools.some(t => t.includes('AI image generator'))) {
+          manipulationTools.push(`AI image generator — GAN/diffusion model (${ganConfidence}% confidence)`)
+        }
+      } else if (ganConfidence > 45) {
+        score -= 8
+      }
+    } catch {
+      // GAN analysis is best-effort; EXIF results still valid
+    }
+  }
 
   score = Math.max(0, Math.min(100, Math.round(score)))
 
@@ -297,20 +390,15 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
   let summary: string
   if (aiSoftware) {
     summary = `AI generation software detected in metadata. This image was created by an artificial intelligence system, not captured by a camera.`
+  } else if (ganIsAI && !aiSoftware) {
+    summary = `GAN fingerprinting detected AI-generation characteristics (${ganConfidence}% confidence). Pixel-level analysis found frequency artifacts and symmetry patterns typical of generative models.`
   } else if (isJpeg && !exif.hasExif) {
-    summary = `This JPEG image is missing EXIF metadata — a strong indicator of AI generation or deliberate metadata removal. Authentic photos almost always contain camera information.`
+    summary = `This JPEG is missing EXIF metadata — a strong indicator of AI generation or deliberate metadata removal. Authentic photos almost always contain camera information.`
   } else if (verdict === 'reliable') {
     summary = `Image metadata appears consistent with an authentic photograph. ${exif.make || exif.model ? `Captured with ${[exif.make, exif.model].filter(Boolean).join(' ')}.` : ''} Always consider context before sharing.`
   } else {
     const issues = signals.filter(s => s.found && s.severity !== 'low')
     summary = `Found ${issues.length} metadata concern(s). The image shows signals that warrant closer inspection before use.`
-  }
-
-  const manipulationTools: string[] = []
-  if (aiSoftware && exif.software) manipulationTools.push(exif.software)
-  if (isJpeg && !exif.hasExif) {
-    manipulationTools.push('Deepfake generation tools (EXIF stripped)')
-    manipulationTools.push('Face swap software (e.g., DeepFaceLab, FaceSwap)')
   }
 
   return {
@@ -320,6 +408,9 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
     summary,
     signals,
     manipulationTools,
-    contentPreview: file.name
+    contentPreview: file.name,
+    ganConfidence,
+    ganIsAI,
+    ganArtifactNames,
   }
 }
