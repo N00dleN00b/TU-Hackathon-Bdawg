@@ -162,3 +162,96 @@ export function clearCrisisData(): void {
   localStorage.removeItem(VIRAL_ALERTS_KEY)
   localStorage.removeItem(MEDIA_ALERTS_KEY)
 }
+
+// ---- GDELT Live Headlines ----
+// GDELT Project API: free, no auth required, CORS-enabled.
+// https://blog.gdeltproject.org/gdelt-2-0-our-global-database-of-society/
+
+export interface LiveHeadline {
+  title: string
+  url: string
+  domain: string
+  seendate: string  // "20260310T233000Z"
+  socialimage?: string
+}
+
+const GDELT_CACHE_PREFIX = 'truthlens_gdelt_'
+const GDELT_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+function parseGdeltDate(seendate: string): Date {
+  // "20260310T233000Z" → Date
+  const y = seendate.slice(0, 4)
+  const mo = seendate.slice(4, 6)
+  const d = seendate.slice(6, 8)
+  const h = seendate.slice(9, 11)
+  const mi = seendate.slice(11, 13)
+  return new Date(`${y}-${mo}-${d}T${h}:${mi}:00Z`)
+}
+
+export function formatHeadlineAge(seendate: string): string {
+  try {
+    const date = parseGdeltDate(seendate)
+    const diffMs = Date.now() - date.getTime()
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return `${Math.floor(hrs / 24)}d ago`
+  } catch {
+    return ''
+  }
+}
+
+export async function fetchLiveHeadlines(
+  query = 'deepfake OR misinformation OR disinformation OR "fact check"'
+): Promise<LiveHeadline[]> {
+  const cacheKey = GDELT_CACHE_PREFIX + query.slice(0, 40)
+
+  // Serve from sessionStorage if fresh
+  try {
+    const cached = sessionStorage.getItem(cacheKey)
+    if (cached) {
+      const { data, ts } = JSON.parse(cached) as { data: LiveHeadline[]; ts: number }
+      if (Date.now() - ts < GDELT_CACHE_TTL) return data
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const encoded = encodeURIComponent(query)
+    const url =
+      `https://api.gdeltproject.org/api/v2/doc/doc?query=${encoded}` +
+      `&mode=artlist&maxrecords=12&format=json&sourcelang=english`
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) throw new Error(`GDELT ${res.status}`)
+
+    const json = await res.json() as { articles?: Array<{
+      url: string; url_mobile?: string; title: string
+      seendate: string; socialimage?: string; domain: string
+      language: string; sourcecountry: string
+    }> }
+
+    const headlines: LiveHeadline[] = (json.articles ?? []).map(a => ({
+      title: a.title,
+      url: a.url,
+      domain: a.domain,
+      seendate: a.seendate,
+      socialimage: a.socialimage,
+    }))
+
+    sessionStorage.setItem(cacheKey, JSON.stringify({ data: headlines, ts: Date.now() }))
+    return headlines
+  } catch {
+    return []
+  }
+}
+
+// Per-category GDELT queries for the crisis sidebar
+export const CATEGORY_GDELT_QUERIES: Record<string, string> = {
+  election: 'election fraud OR "election misinformation" OR "voting disinformation"',
+  'public-health': 'health misinformation OR vaccine disinformation OR pandemic hoax',
+  financial: 'financial fraud OR crypto scam OR "market manipulation"',
+  disaster: 'disaster misinformation OR "natural disaster" disinformation',
+  scandal: 'deepfake scandal OR disinformation campaign',
+  other: 'deepfake OR misinformation OR "fact check"',
+}

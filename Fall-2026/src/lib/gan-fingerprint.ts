@@ -121,9 +121,24 @@ export async function analyzeForGAN(imageData: ImageData): Promise<GanAnalysis> 
   ]
 
   const detectedSignals = signals.filter(s => s.detected)
-  const artifacts = AI_ARTIFACTS.map(a => ({
+
+  // Map each artifact to the signal most likely to reveal it, so artifacts only
+  // appear when the underlying pixel analysis actually triggered a detection.
+  // Order matches AI_ARTIFACTS array: grid, symmetry, frequency, anatomy, texture, background, color, lighting.
+  const artifactSignalMap = [
+    signals.find(s => s.type === 'texture')?.detected ?? false,    // Grid artifacts
+    signals.find(s => s.type === 'symmetry')?.detected ?? false,   // Symmetry bias
+    signals.find(s => s.type === 'frequency')?.detected ?? false,  // Frequency inconsistencies
+    signals.find(s => s.type === 'anatomy')?.detected ?? false,    // Anatomical oddities
+    signals.find(s => s.type === 'texture')?.detected ?? false,    // Texture blending errors
+    signals.find(s => s.type === 'noise')?.detected ?? false,      // Background coherence loss
+    signals.find(s => s.type === 'color')?.detected ?? false,      // Color bleeding
+    signals.find(s => s.type === 'frequency')?.detected ?? false,  // Lighting inconsistencies
+  ]
+
+  const artifacts = AI_ARTIFACTS.map((a, i) => ({
     ...a,
-    found: Math.random() > 0.6 // Simulated detection
+    found: artifactSignalMap[i] ?? false,
   }))
 
   const score = calculateGANScore(signals, artifacts)

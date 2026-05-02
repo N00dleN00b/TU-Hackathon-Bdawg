@@ -1,6 +1,6 @@
 export type SignalSeverity = 'low' | 'medium' | 'high'
 export type Verdict = 'reliable' | 'caution' | 'suspicious' | 'manipulated' | 'unknown'
-export type AnalysisType = 'text' | 'image'
+export type AnalysisType = 'text' | 'image' | 'video' | 'audio'
 
 export interface Signal {
   id: string
@@ -22,6 +22,9 @@ export interface AnalysisResult {
   manipulationTools: string[]
   contentPreview: string
   aiEnhanced: boolean
+  ganConfidence?: number
+  ganIsAI?: boolean
+  ganArtifactNames?: string[]
 }
 
 export interface TextAnalysisInput {
