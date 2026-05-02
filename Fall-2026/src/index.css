@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @custom-variant dark (&:is(.dark *));
 
@@ -48,7 +51,7 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: #8B5CF6;
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: #00FFFF;
+  --secondary: #A1A1AA;
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
@@ -117,5 +120,30 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+
+
+
+
+@layer utilities {
+  .typing {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 2px solid black;
+    width: 0;
+    animation: typing 2.5s steps(30, end) forwards,
+               blink 0.7s step-end infinite;
+  }
+
+  @keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+  }
+
+  @keyframes blink {
+    50% { border-color: transparent }
   }
 }

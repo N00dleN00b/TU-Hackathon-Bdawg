@@ -75,11 +75,12 @@ export default function Dashboard() {
         </div>
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
           <ShieldCheck className="size-4" />
-          TU Hackathon Fall 2026 — Media Trust Project
+          TU Hackathon Fall 2026 — Wonder Gaurd
         </div>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-          Stop Sharing.<br className="hidden sm:block" /> Start Verifying.
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl ">
+          Stop Sharing.<br className="hidden sm:block" /> <span className="typing"> Start Verifying </span>
         </h1>
+
         <p className="max-w-xl mx-auto text-muted-foreground text-lg leading-relaxed">
           RealityCheck is the Shazam for disinformation. In seconds, identify manipulation signals,
           deepfake indicators, and the tools used to deceive — all in your browser, all free.
