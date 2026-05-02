@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ThumbsUp, ThumbsDown, HelpCircle, Star, Award, TrendingUp, MessageCircle } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, HelpCircle, Award, TrendingUp, MessageCircle } from 'lucide-react'
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/page-header'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,6 @@ import {
   getConsensus,
   getUserVote,
   getCurrentUserReputation,
-  getHistory as getAllHistory,
   type CommunityConsensus
 } from '@/lib/community'
 import { getHistory } from '@/lib/storage'

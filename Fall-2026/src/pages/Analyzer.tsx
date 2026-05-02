@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  Loader2, ScanText, Image as ImageIcon, Sparkles, Wrench,
-  ChevronDown, ChevronUp, Key, UploadCloud, X, AlertTriangle,
+  Loader2, ScanText, Image as ImageIcon, Wrench,
+  ChevronDown, ChevronUp, UploadCloud, X, AlertTriangle,
   Film, Mic, Flag, Search, ExternalLink, CheckCircle2, BookOpen,
 } from 'lucide-react'
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/page-header'
@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { TrustMeter } from '@/components/TrustMeter'
 import { SignalList } from '@/components/SignalList'
 import { VideoResultCard } from '@/components/VideoResultCard'
@@ -24,7 +23,6 @@ import { analyzeText } from '@/lib/textAnalysis'
 import { analyzeImage } from '@/lib/imageAnalysis'
 import { analyzeVideo } from '@/lib/video-detection'
 import { analyzeAudio } from '@/lib/audio-forensics'
-import { enhanceWithGroq } from '@/lib/groqClient'
 import { saveAnalysis, generateId } from '@/lib/storage'
 import { matchesCrisis, logMediaAlert } from '@/lib/crisis'
 import type { AnalysisResult } from '@/lib/types'
@@ -102,10 +100,6 @@ export default function Analyzer() {
   const [dragOverAudio, setDragOverAudio] = useState(false)
   const audioInputRef = useRef<HTMLInputElement>(null)
 
-  // Groq
-  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('realitycheck_groq_key') ?? '')
-  const [showApiKey, setShowApiKey] = useState(false)
-
   // State
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [result, setResult] = useState<AnalysisResult | null>(null)
@@ -132,12 +126,6 @@ export default function Analyzer() {
       setSearchParams({}, { replace: true })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const saveKey = (key: string) => {
-    setGroqKey(key)
-    if (key) localStorage.setItem('realitycheck_groq_key', key)
-    else localStorage.removeItem('realitycheck_groq_key')
-  }
 
   const clearAllResults = () => {
     setResult(null)
@@ -236,25 +224,13 @@ export default function Analyzer() {
           setError('Please enter at least 20 characters of text to analyze.')
           return
         }
-        let baseResult = analyzeText(text)
-
-        if (groqKey) {
-          const enhancement = await enhanceWithGroq(text, groqKey)
-          if (enhancement) {
-            baseResult = {
-              ...baseResult,
-              trustScore: Math.round((baseResult.trustScore + enhancement.trustScore) / 2),
-              summary: enhancement.summary,
-              manipulationTools: [...new Set([...baseResult.manipulationTools, ...enhancement.manipulationTools])]
-            }
-          }
-        }
+        const baseResult = analyzeText(text)
 
         const finalResult: AnalysisResult = {
           ...baseResult,
           id: generateId(),
           timestamp: new Date().toISOString(),
-          aiEnhanced: !!groqKey,
+          aiEnhanced: false,
         }
         saveAnalysis(finalResult)
         setResult(finalResult)
@@ -326,35 +302,6 @@ export default function Analyzer() {
 
   const hasResult = result || videoResult || audioResult
   const flaggedCount = result?.signals.filter(s => s.found && s.severity !== 'low').length ?? 0
-
-  // ---- Shared file drop zone ----
-  const DropZone = ({
-    dragOver, onDragOver, onDragLeave, onDrop, onClick, accept, hint,
-    icon: Icon,
-  }: {
-    dragOver: boolean
-    onDragOver: (e: React.DragEvent) => void
-    onDragLeave: () => void
-    onDrop: (e: React.DragEvent) => void
-    onClick: () => void
-    accept: string
-    hint: string
-    icon: React.ElementType
-  }) => (
-    <div
-      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-        ${dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/30'}`}
-      onDragOver={e => { e.preventDefault(); onDragOver(e) }}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      onClick={onClick}
-    >
-      <Icon className="size-10 mx-auto text-muted-foreground mb-3" />
-      <p className="font-medium">Drop a file here or click to browse</p>
-      <p className="text-xs text-muted-foreground mt-1">{hint}</p>
-      <input type="file" accept={accept} className="hidden" ref={undefined} />
-    </div>
-  )
 
   return (
     <>
@@ -548,47 +495,6 @@ export default function Analyzer() {
             </CardContent>
           </Card>
 
-          {/* Groq AI key — only relevant for text */}
-          {activeTab === 'text' && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Sparkles className="size-4 text-purple-500" />
-                  AI Enhancement (Optional)
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Add a free Groq API key for deeper AI-powered text analysis. Get one at{' '}
-                  <a href="https://console.groq.com" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                    console.groq.com
-                  </a>
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Label htmlFor="groq-key" className="sr-only">Groq API Key</Label>
-                    <Input
-                      id="groq-key"
-                      type={showApiKey ? 'text' : 'password'}
-                      placeholder="gsk_..."
-                      value={groqKey}
-                      onChange={e => saveKey(e.target.value)}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => setShowApiKey(v => !v)}>
-                    <Key className="size-4" />
-                  </Button>
-                </div>
-                {groqKey && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
-                    <Sparkles className="size-3" /> AI enhancement active
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           {error && (
             <Alert variant="destructive">
               <AlertTitle>Error</AlertTitle>
@@ -678,11 +584,6 @@ export default function Analyzer() {
               <Card>
                 <CardContent className="pt-6 flex flex-col items-center gap-4">
                   <TrustMeter score={result.trustScore} verdict={result.verdict} size="lg" />
-                  {result.aiEnhanced && (
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <Sparkles className="size-3 text-purple-500" /> AI Enhanced
-                    </Badge>
-                  )}
                   {activeTab === 'image' && result.ganConfidence !== undefined && result.ganConfidence > 0 && (() => {
                     const c = result.ganConfidence
                     const [label, cls] = result.ganIsAI
@@ -777,7 +678,7 @@ export default function Analyzer() {
               )}
 
               {/* XAI: Why is this flagged */}
-              {(['suspicious', 'manipulated'] as const).includes(result.verdict) && (() => {
+              {(result.verdict === 'suspicious' || result.verdict === 'manipulated') && (() => {
                 const techniques = result.signals
                   .filter(s => s.found && TECHNIQUE_EXPLAIN[s.id])
                   .map(s => TECHNIQUE_EXPLAIN[s.id])
@@ -861,7 +762,7 @@ export default function Analyzer() {
               )}
 
               {/* Report to Platform */}
-              {(['suspicious', 'manipulated'] as const).includes(result.verdict) && (
+              {(result.verdict === 'suspicious' || result.verdict === 'manipulated') && (
                 <Card className="border-red-200/40 dark:border-red-900/40">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">

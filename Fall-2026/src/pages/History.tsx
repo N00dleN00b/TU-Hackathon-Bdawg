@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Trash2, ScanText, Image as ImageIcon, Clock, AlertTriangle } from 'lucide-react'
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/page-header'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TrustMeter, VERDICT_LABELS } from '@/components/TrustMeter'

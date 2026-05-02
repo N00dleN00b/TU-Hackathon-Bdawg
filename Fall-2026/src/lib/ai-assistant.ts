@@ -1,4 +1,4 @@
-// AI Assistant: Keyword-based fallback + optional Groq-powered mode
+// AI Assistant: Keyword-based response engine
 
 export interface AssistantMessage {
   id: string
@@ -112,9 +112,7 @@ const RESPONSES: Record<string, { patterns: string[], responses: string[] }> = {
   default: {
     patterns: [],
     responses: [
-      'I can help with deepfake detection, fact-checking, media literacy, image forensics, video/audio verification, and crisis alerts. What would you like to know?',
-      'Ask me about: How to spot deepfakes? Is this misinformation? How do I verify media? What shows tampering? I have answers on all of it.',
-      'Not sure what to ask? Try: "How do I detect deepfakes?" or "What is misinformation?" or "How do I verify an image?" I\'m here to help you think critically.'
+      "Sorry, I didn't quite catch that. Please try something else — I can help with deepfakes, fact-checking, image forensics, voice cloning, media literacy, or crisis news.",
     ]
   }
 }
@@ -162,53 +160,58 @@ export async function* streamResponse(message: string): AsyncGenerator<string> {
   yield response
 }
 
-const GROQ_SYSTEM_PROMPT = `You are RealityCheck AI, a concise media literacy and fact-checking assistant. You help users:
-- Detect deepfakes and manipulated images, video, and audio
-- Fact-check news articles and social media claims using the SIFT method
-- Identify misinformation red flags (emotional language, vague sourcing, missing authors, unverified claims)
-- Verify sources using Snopes, PolitiFact, FactCheck.org, MediaBias/FactCheck, and AP Fact Check
-- Understand forensic signals: EXIF metadata, GAN artifacts, spectral audio analysis, C2PA manifests
+// Returns true when a valid API key is configured in .env.local
+export function hasClaudeKey(): boolean {
+  const key = import.meta.env.VITE_ANTHROPIC_API_KEY
+  return !!key && key !== 'INSERT_API_KEY_HERE'
+}
 
-When a user shares a claim or article text, provide:
-1. A one-line credibility assessment
-2. 2-3 specific red flags or green flags
-3. Concrete next steps (specific sites or methods)
+// Streams a real Claude response; yields accumulated text as chunks arrive.
+// Requires VITE_ANTHROPIC_API_KEY in .env.local
+export async function* streamClaude(
+  conversationMessages: { role: 'user' | 'assistant'; content: string }[]
+): AsyncGenerator<string> {
+  const key = import.meta.env.VITE_ANTHROPIC_API_KEY
 
-Keep responses under 5 sentences unless doing a detailed fact-check. Be direct and actionable.`
-
-// Groq-powered chat — uses actual LLM if an API key is available.
-// Keeps the last 6 messages as context so the assistant can follow multi-turn conversations.
-export async function chatWithGroq(
-  message: string,
-  apiKey: string,
-  history: AssistantMessage[]
-): Promise<string> {
-  const messages = [
-    { role: 'system', content: GROQ_SYSTEM_PROMPT },
-    ...history.slice(-6).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    { role: 'user' as const, content: message },
-  ]
-
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.4,
-      max_tokens: 500,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      stream: true,
+      system:
+        'You are RealityCheck AI, a media literacy and deepfake detection assistant embedded in a browser-based verification tool. Help users detect deepfakes, fact-check claims, verify images/video/audio, and understand disinformation tactics. Be concise and practical — 2–4 sentences unless step-by-step is needed. Never make up citations.',
+      messages: conversationMessages,
     }),
   })
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    console.error('Groq assistant error:', response.status, err)
-    throw new Error(`Groq error ${response.status}`)
-  }
+  if (!res.ok || !res.body) throw new Error(`Claude API ${res.status}`)
 
-  const data = await response.json()
-  return data.choices?.[0]?.message?.content ?? 'No response received. Please try again.'
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let accumulated = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    for (const line of decoder.decode(value).split('\n')) {
+      if (!line.startsWith('data: ')) continue
+      const json = line.slice(6).trim()
+      if (json === '[DONE]') return
+      try {
+        const evt = JSON.parse(json)
+        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+          accumulated += evt.delta.text
+          yield accumulated
+        }
+      } catch { /* ignore partial JSON chunks */ }
+    }
+  }
 }
+

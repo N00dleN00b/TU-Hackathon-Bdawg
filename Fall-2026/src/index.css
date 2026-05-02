@@ -119,3 +119,153 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ═══════════════════════════════════════
+   CYBERPUNK ANIMATIONS
+   ═══════════════════════════════════════ */
+
+/* Glitch: periodic clip-path slice bursts with color channel shift */
+@keyframes glitch-clip {
+  0%,  93%, 100% {
+    clip-path: none;
+    transform: translate(0);
+    text-shadow: none;
+  }
+  94% {
+    clip-path: inset(12% 0 68% 0);
+    transform: translate(-5px, 0);
+    text-shadow: 4px 0 #ff00ff;
+  }
+  95% {
+    clip-path: inset(58% 0 18% 0);
+    transform: translate(5px, 0);
+    text-shadow: -4px 0 #00ffff;
+  }
+  96% {
+    clip-path: inset(30% 0 42% 0);
+    transform: translate(-3px, 0);
+    text-shadow: 3px 0 #ff00ff;
+  }
+  97% {
+    clip-path: inset(72% 0 4% 0);
+    transform: translate(3px, 0);
+    text-shadow: -2px 0 #00ffff;
+  }
+  98% {
+    clip-path: inset(5% 0 88% 0);
+    transform: translate(-1px, 0);
+    text-shadow: 2px 0 #ff00ff;
+  }
+  99% {
+    clip-path: none;
+    transform: translate(1px, 0);
+    text-shadow: none;
+  }
+}
+
+.glitch-text {
+  animation: glitch-clip 4s infinite;
+  will-change: clip-path, transform;
+  display: inline-block;
+}
+
+/* Neon flicker — occasional dropout like a faulty sign */
+@keyframes neon-flicker {
+  0%, 18%, 22%, 25%, 53%, 57%, 100% {
+    text-shadow:
+      0 0 4px currentColor,
+      0 0 12px #8b5cf6,
+      0 0 28px #8b5cf6aa;
+  }
+  19%, 24%, 54%, 56% {
+    text-shadow: none;
+  }
+}
+
+.neon-text {
+  animation: neon-flicker 7s infinite;
+}
+
+/* Scanline beam that sweeps top → bottom */
+@keyframes scanline-sweep {
+  0%   { top: -15%; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: 1; }
+  100% { top: 110%; opacity: 0; }
+}
+
+.scanline-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(139, 92, 246, 0.06),
+    rgba(0, 255, 255, 0.04),
+    transparent
+  );
+  animation: scanline-sweep 7s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Static horizontal scanline overlay */
+.scanlines-overlay {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0, 0, 0, 0.04) 3px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  pointer-events: none;
+}
+
+/* Cyberpunk dot grid background */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Blinking terminal cursor */
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.terminal-cursor::after {
+  content: '█';
+  font-size: 0.7em;
+  margin-left: 2px;
+  color: #00ffff;
+  animation: cursor-blink 1s step-end infinite;
+}
+
+/* Corner bracket decoration */
+.cyber-corner {
+  position: relative;
+}
+.cyber-corner::before,
+.cyber-corner::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: #8b5cf6;
+  border-style: solid;
+  opacity: 0.5;
+}
+.cyber-corner::before {
+  top: -2px;
+  left: -2px;
+  border-width: 2px 0 0 2px;
+}
+.cyber-corner::after {
+  bottom: -2px;
+  right: -2px;
+  border-width: 0 2px 2px 0;
+}

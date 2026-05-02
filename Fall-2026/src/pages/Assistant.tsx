@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Bot, User, Loader2, Sparkles, Key, ExternalLink } from 'lucide-react'
+import { Send, Bot, User, Loader2, ExternalLink } from 'lucide-react'
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/page-header'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +9,8 @@ import {
   getAssistantResponse,
   createAssistantMessage,
   streamResponse,
-  chatWithGroq,
+  streamClaude,
+  hasClaudeKey,
   type AssistantMessage
 } from '@/lib/ai-assistant'
 
@@ -34,7 +35,7 @@ const FACT_CHECK_RESOURCES = [
 export default function Assistant() {
   const [messages, setMessages] = useState<AssistantMessage[]>([
     createAssistantMessage(
-      "Hi! I'm the RealityCheck AI Assistant. Paste a claim, article, or question and I'll help you fact-check it or explain how to verify media. What would you like to investigate?",
+      "Hi! I'm the RealityCheck AI Assistant. Ask me about deepfakes, fact-checking, voice cloning, media literacy, or paste a claim you want to investigate.",
       'assistant'
     ),
   ])
@@ -42,70 +43,46 @@ export default function Assistant() {
   const [isLoading, setIsLoading] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('realitycheck_groq_key') ?? '')
-  const [showKeyInput, setShowKeyInput] = useState(false)
   const messagesEnd = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const groqActive = !!groqKey
-
-  const scrollToBottom = () => {
-    messagesEnd.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   useEffect(() => {
-    scrollToBottom()
+    messagesEnd.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingText])
-
-  const saveGroqKey = (key: string) => {
-    setGroqKey(key)
-    if (key) localStorage.setItem('realitycheck_groq_key', key)
-    else localStorage.removeItem('realitycheck_groq_key')
-  }
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
 
     const userMessage = createAssistantMessage(text, 'user')
-    const updatedHistory = [...messages, userMessage]
-    setMessages(updatedHistory)
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
     setInput('')
     setIsLoading(true)
+    setIsStreaming(true)
 
     try {
-      if (groqActive) {
-        // Use Groq LLM — no streaming (fetch waits for full response)
-        setIsStreaming(true)
-        setStreamingText('...')
-        const reply = await chatWithGroq(text, groqKey, messages)
+      if (hasClaudeKey()) {
+        const history = updatedMessages.map(m => ({ role: m.role, content: m.content }))
+        let finalText = ''
+        for await (const chunk of streamClaude(history)) {
+          setStreamingText(chunk)
+          finalText = chunk
+        }
         setStreamingText('')
         setIsStreaming(false)
-        setMessages(prev => [...prev, createAssistantMessage(reply, 'assistant')])
+        setMessages(prev => [...prev, createAssistantMessage(finalText || getAssistantResponse(text), 'assistant')])
       } else {
-        // Keyword fallback with typing effect
-        setIsStreaming(true)
-        const gen = streamResponse(text)
-        for await (const chunk of gen) {
+        for await (const chunk of streamResponse(text)) {
           setStreamingText(chunk)
         }
-        const reply = getAssistantResponse(text)
         setStreamingText('')
         setIsStreaming(false)
-        setMessages(prev => [...prev, createAssistantMessage(reply, 'assistant')])
+        setMessages(prev => [...prev, createAssistantMessage(getAssistantResponse(text), 'assistant')])
       }
-    } catch (err) {
-      console.error('Assistant error:', err)
+    } catch {
       setStreamingText('')
       setIsStreaming(false)
-      setMessages(prev => [
-        ...prev,
-        createAssistantMessage(
-          groqActive
-            ? 'Groq API error — check your key or try again. Falling back: ' + getAssistantResponse(text)
-            : getAssistantResponse(text),
-          'assistant'
-        ),
-      ])
+      setMessages(prev => [...prev, createAssistantMessage(getAssistantResponse(text), 'assistant')])
     } finally {
       setIsLoading(false)
       inputRef.current?.focus()
@@ -113,11 +90,7 @@ export default function Assistant() {
   }
 
   const handleSend = () => sendMessage(input)
-
-  const handleQuickPrompt = (text: string) => {
-    setInput(text)
-    sendMessage(text)
-  }
+  const handleQuickPrompt = (text: string) => { setInput(text); sendMessage(text) }
 
   return (
     <>
@@ -128,7 +101,6 @@ export default function Assistant() {
         </PageHeaderHeading>
         <PageHeaderDescription>
           Ask about deepfakes, paste a claim to fact-check, or get media literacy guidance.
-          {groqActive && <span className="text-purple-600 dark:text-purple-400 font-medium"> · Groq AI active</span>}
         </PageHeaderDescription>
       </PageHeader>
 
@@ -145,17 +117,13 @@ export default function Assistant() {
                     </div>
                   </div>
                 )}
-
-                <div
-                  className={`max-w-[75%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground'
-                  }`}
-                >
+                <div className={`max-w-[75%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-foreground'
+                }`}>
                   {msg.content}
                 </div>
-
                 {msg.role === 'user' && (
                   <div className="shrink-0">
                     <div className="rounded-full bg-muted p-2">
@@ -166,12 +134,11 @@ export default function Assistant() {
               </div>
             ))}
 
-            {/* Streaming / loading indicator */}
             {isStreaming && (
               <div className="flex gap-3">
                 <div className="shrink-0">
                   <div className="rounded-full bg-primary/20 p-2">
-                    <Bot className={`size-5 text-primary ${isLoading ? 'animate-pulse' : ''}`} />
+                    <Bot className="size-5 text-primary animate-pulse" />
                   </div>
                 </div>
                 <div className="max-w-[75%] rounded-lg p-3 text-sm bg-muted text-foreground leading-relaxed whitespace-pre-wrap">
@@ -188,9 +155,7 @@ export default function Assistant() {
             <div ref={messagesEnd} />
           </CardContent>
 
-          {/* Input */}
           <div className="border-t p-4 space-y-2.5">
-            {/* Quick prompts strip */}
             <div className="flex gap-1.5 flex-wrap">
               {QUICK_PROMPTS.slice(0, 4).map(p => (
                 <Button
@@ -208,84 +173,24 @@ export default function Assistant() {
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
-                placeholder={groqActive
-                  ? 'Ask anything or paste a claim to fact-check...'
-                  : 'Ask about deepfakes, fact-checking, media literacy...'}
+                placeholder="Ask about deepfakes, fact-checking, media literacy..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSend()
-                  }
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
                 }}
                 disabled={isLoading}
                 className="text-sm"
               />
               <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
-                {isLoading
-                  ? <Loader2 className="size-4 animate-spin" />
-                  : <Send className="size-4" />}
+                {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               </Button>
             </div>
-            {!groqActive && (
-              <p className="text-xs text-muted-foreground">
-                Tip: Add a Groq API key in the sidebar for full AI responses on any question.
-              </p>
-            )}
           </div>
         </Card>
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Groq key card */}
-          <Card className={groqActive ? 'border-purple-300 dark:border-purple-800' : ''}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Sparkles className={`size-4 ${groqActive ? 'text-purple-500' : 'text-muted-foreground'}`} />
-                AI Mode
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {groqActive
-                  ? 'Groq LLM active — full AI responses on any question.'
-                  : 'Add a free Groq key for real AI responses. Get one at console.groq.com.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {showKeyInput || !groqActive ? (
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    placeholder="gsk_..."
-                    value={groqKey}
-                    onChange={e => saveGroqKey(e.target.value)}
-                    className="font-mono text-xs"
-                  />
-                  {groqActive && (
-                    <Button variant="ghost" size="sm" className="text-xs shrink-0" onClick={() => setShowKeyInput(false)}>
-                      Done
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs gap-1.5"
-                  onClick={() => setShowKeyInput(true)}
-                >
-                  <Key className="size-3" /> Change key
-                </Button>
-              )}
-              {groqActive && (
-                <p className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                  <Sparkles className="size-3" /> AI-powered responses active
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* All quick prompts */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Quick Questions</CardTitle>
@@ -306,7 +211,6 @@ export default function Assistant() {
             </CardContent>
           </Card>
 
-          {/* Fact-check resources */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Fact-Check Resources</CardTitle>
@@ -330,7 +234,6 @@ export default function Assistant() {
             </CardContent>
           </Card>
 
-          {/* Topics */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Topics</CardTitle>
@@ -351,15 +254,6 @@ export default function Assistant() {
               ))}
             </CardContent>
           </Card>
-
-          {!groqActive && (
-            <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200/50">
-              <CardContent className="pt-4 pb-4 space-y-1.5 text-xs text-muted-foreground">
-                <p><strong>Keyword mode:</strong> Responses come from a curated knowledge base. Add a Groq key above for real AI answers on any topic.</p>
-                <p>For specific claims, use the <strong>Analyzer</strong> page or the fact-check sites linked above.</p>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
     </>

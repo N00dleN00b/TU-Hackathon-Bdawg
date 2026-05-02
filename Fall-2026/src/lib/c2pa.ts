@@ -174,7 +174,7 @@ export function hasC2PAManifest(fileData: ArrayBuffer): boolean {
 }
 
 // Mock function to simul reading C2PA from JUMBF container
-export function readC2PAFromImage(fileData: ArrayBuffer): C2PAManifest | null {
+export function readC2PAFromImage(_fileData: ArrayBuffer): C2PAManifest | null {
   // In real implementation, this would parse JUMBF box from JPEG/PNG
   // For now, return null (real parsing requires specialized libraries)
   

@@ -42,7 +42,7 @@ export default function CrisisMode() {
 
   const [headlines, setHeadlines] = useState<LiveHeadline[]>([])
   const [headlinesLoading, setHeadlinesLoading] = useState(false)
-  const [headlinesError, setHeadlinesError] = useState(false)
+  const [_headlinesError, setHeadlinesError] = useState(false)
   const [headlinesDemoMode, setHeadlinesDemoMode] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 

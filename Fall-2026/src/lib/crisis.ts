@@ -29,10 +29,11 @@ const MEDIA_ALERTS_KEY = 'realitycheck_media_alerts'
 // Current global crisis keywords (hardcoded for demo)
 const CRISIS_KEYWORDS = {
   election: ['election', 'voting', 'ballot', 'candidate', 'campaign', 'electoral college', 'polls'],
-  publicHealth: ['vaccine', 'pandemic', 'covid', 'virus', 'outbreak', 'health crisis', 'quarantine'],
+  'public-health': ['vaccine', 'pandemic', 'covid', 'virus', 'outbreak', 'health crisis', 'quarantine'],
   financial: ['crypto', 'market crash', 'bank failure', 'inflation', 'stock', 'fraud'],
   disaster: ['earthquake', 'hurricane', 'flood', 'fire', 'tornado', 'tsunami', 'volcano'],
   scandal: ['epstein', 'jp morgan', 'sex trafficking', 'corruption', 'bribery', 'coverup'],
+  other: [],
 }
 
 // Get active viral alerts
@@ -152,7 +153,7 @@ export function initializeDemoAlerts(): void {
     'Health Misinformation Watch',
     'Flag false health claims, vaccine misinformation, pandemic hoaxes',
     'high',
-    'publicHealth',
+    'public-health',
     24
   )
 }

@@ -208,7 +208,9 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
   const now = new Date()
   const daysDiff = (now.getTime() - lastModified.getTime()) / (1000 * 60 * 60 * 24)
   const isFutureDate = lastModified > now
-  const isVeryRecentOrOld = daysDiff < 1 || daysDiff > 365 * 5
+  // Only flag genuinely anomalous dates: future timestamps or files >5 years old
+  // (possibly repurposed archival content). A photo taken today is perfectly normal.
+  const isVeryRecentOrOld = daysDiff > 365 * 5
 
   const signals: Signal[] = [
     {
@@ -227,7 +229,7 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
       id: 'camera_info',
       category: 'Metadata',
       label: 'Camera Device Information',
-      severity: exif.hasExif && !exif.make && !exif.model ? 'medium' : 'low',
+      severity: 'low',
       found: exif.hasExif && !exif.make && !exif.model,
       description: exif.make || exif.model
         ? `Camera: ${[exif.make, exif.model].filter(Boolean).join(' ')}. Device metadata suggests authentic capture.`
@@ -307,12 +309,15 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
 
   // ---- EXIF scoring ----
   let score = 70
-  if (isJpeg && !exif.hasExif) score -= 25
+  // Missing EXIF is a weak signal — social media, messaging apps, and most web downloads
+  // strip EXIF automatically. Only apply a small deduction.
+  if (isJpeg && !exif.hasExif) score -= 8
   if (aiSoftware) score -= 70
-  if (!exif.make && !exif.model && exif.hasExif) score -= 10
+  // Missing make/model with EXIF present is very common — many apps strip device tags
+  // while preserving the EXIF container. Not penalized.
   if (isFutureDate) score -= 25
-  if (suspiciousName) score -= 5   // was -5; generic filenames are a strong signal
-  if (tinyFile) score -= 12         // tiny JPEG = likely web thumbnail or AI output
+  if (suspiciousName) score -= 5
+  if (tinyFile) score -= 12
   if (exif.gpsLatitude !== undefined) score += 10
   if (exif.make || exif.model) score += 10
   if (exif.dateTime) score += 5
@@ -320,10 +325,6 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
 
   const manipulationTools: string[] = []
   if (aiSoftware && exif.software) manipulationTools.push(exif.software)
-  if (isJpeg && !exif.hasExif) {
-    manipulationTools.push('Deepfake generation tools (EXIF stripped)')
-    manipulationTools.push('Face swap software (e.g., DeepFaceLab, FaceSwap)')
-  }
 
   // ---- GAN fingerprinting ----
   let ganConfidence = 0
@@ -371,12 +372,15 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
       )
 
       if (ganIsAI) {
-        score -= 20
+        score -= 10
         if (!manipulationTools.some(t => t.includes('AI image generator'))) {
           manipulationTools.push(`AI image generator — GAN/diffusion model (${ganConfidence}% confidence)`)
         }
       } else if (ganConfidence > 60) {
-        score -= 8
+        score -= 3
+      } else if (ganConfidence < 35) {
+        // Pixel analysis found no AI artifacts — positive evidence of authenticity
+        score += 6
       }
     } catch {
       // GAN analysis is best-effort; EXIF results still valid

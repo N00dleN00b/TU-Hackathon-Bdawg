@@ -120,8 +120,6 @@ export async function analyzeForGAN(imageData: ImageData): Promise<GanAnalysis> 
     }
   ]
 
-  const detectedSignals = signals.filter(s => s.detected)
-
   // Map each artifact to the signal most likely to reveal it, so artifacts only
   // appear when the underlying pixel analysis actually triggered a detection.
   // Order matches AI_ARTIFACTS array: grid, symmetry, frequency, anatomy, texture, background, color, lighting.
@@ -144,7 +142,7 @@ export async function analyzeForGAN(imageData: ImageData): Promise<GanAnalysis> 
   const score = calculateGANScore(signals, artifacts)
 
   return {
-    isLikelyAI: score >= 72,
+    isLikelyAI: score >= 78,
     confidence: score,
     signals,
     artifacts: artifacts.filter(a => a.found),
@@ -157,7 +155,6 @@ function detectFrequencyAnomalies(data: Uint8ClampedArray, width: number, height
   // Simplified: Check for repeating patterns at multiples of common generator output sizes
   // Real implementation would use FFT
   
-  const sampleSize = Math.min(64, Math.min(width, height))
   let anomalyCount = 0
   
   for (let stride = 8; stride <= 32; stride += 8) {
@@ -283,8 +280,10 @@ function detectAnatomicalOddities(data: Uint8ClampedArray, width: number, height
     }
   }
 
-  // Scale with image size: require anomaly density > 0.15% of pixels
-  const threshold = Math.max(100, Math.floor((width * height) * 0.0015))
+  // Scale with image size: require anomaly density > 0.8% of pixels.
+  // Group photos and conference shots have inherently high edge density (hair, clothing,
+  // badges, text in background) — the threshold must be conservative to avoid false positives.
+  const threshold = Math.max(500, Math.floor((width * height) * 0.008))
   return anomalies > threshold
 }
 
@@ -332,20 +331,17 @@ function detectEdges(data: Uint8ClampedArray, width: number, height: number): nu
 }
 
 function calculateGANScore(signals: GanSignal[], artifacts: Artifact[]): number {
-  // Baseline lowered from 50 → 10. Starting at 50 meant two medium signals
-  // automatically crossed the old 65% threshold — every JPEG was "AI".
-  // Scores only climb meaningfully when multiple independent signals fire.
   let score = 10
 
   signals.forEach(s => {
     if (s.detected) {
-      if (s.severity === 'high') score += 18
-      else if (s.severity === 'medium') score += 10
-      else score += 4
+      if (s.severity === 'high') score += 10
+      else if (s.severity === 'medium') score += 6
+      else score += 3
     }
   })
 
-  score += artifacts.filter(a => a.found).length * 4
+  score += artifacts.filter(a => a.found).length * 2
 
   return Math.min(100, Math.max(0, score))
 }
