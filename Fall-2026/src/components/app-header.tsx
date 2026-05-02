@@ -26,7 +26,6 @@ export function AppHeader() {
                 <div className='flex items-center gap-2 md:gap-0'>
                     <AppSidebar />
                     <Link to="/">
-                        <AppLogo />
                     </Link>
                 </div>
 
@@ -81,48 +80,7 @@ export function AppHeader() {
                             ))}
                         </nav>
                     </div>
-                    <nav className="flex gap-1">
-                        <a
-                            href={appConfig.github.url}
-                            title={appConfig.github.title}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={cn(
-                                buttonVariants({
-                                    variant: "ghost",
-                                    size: "icon",
-                                }),
-                                "size-8"
-                            )}>
-                            <GitHub />
-                            <span className="sr-only">GitHub</span>
-                        </a>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant='ghost'
-                                    className='relative h-8 w-8 rounded-full cursor-pointer ml-2'>
-                                    <Avatar className='h-8 w-8'>
-                                        <AvatarImage src={baseUrl + '/avatars/shadcn.jpg'} alt='shadcn' />
-                                        <AvatarFallback className="rounded-lg">SC</AvatarFallback>
-                                    </Avatar>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className='w-56' align='end' forceMount>
-                                <DropdownMenuLabel className='font-normal'>
-                                    <div className='flex flex-col space-y-1'>
-                                        <p className='text-sm font-medium leading-none'>shadcn</p>
-                                        <p className='text-xs leading-none text-muted-foreground'>
-                                            m@example.com
-                                        </p>
                                     </div>
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>Log out</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </nav>
-                </div>
             </div>
         </header >
     )
