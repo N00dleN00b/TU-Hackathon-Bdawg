@@ -104,7 +104,7 @@ Verification tools:
 • GPTZero (gptzero.me) — AI text detection
 • Originality.AI — content authenticity scoring
 • Copyleaks — AI and plagiarism detection
-• TruthLens — our heuristic AI pattern detection (built right here!)
+• RealityCheck — our heuristic AI pattern detection (built right here!)
 
 Important: AI detection is not perfect. Use it as one signal, not a verdict.`,
     signals: ['AI text patterns', 'Formal phrasing', 'Missing voice'],
@@ -153,7 +153,7 @@ export default function Learn() {
                 </p>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    What TruthLens checks
+                    What RealityCheck checks
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {topic.signals.map(s => (

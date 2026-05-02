@@ -181,9 +181,10 @@ function isAiGeneratedSoftware(software?: string): boolean {
 
 function isSuspiciousFileName(name: string): boolean {
   const lower = name.toLowerCase()
-  const suspicious = ['image', 'download', 'screenshot', 'photo', 'picture', 'img', 'untitled', 'generated']
-  const suspiciousPattern = /^(image|photo|download|screenshot|picture)\s*(\(\d+\))?\.\w+$/i
-  return suspiciousPattern.test(lower) || suspicious.some(s => lower.startsWith(s) && lower.length < s.length + 10)
+  // Matches: images.jpg, images (1).jpg, image (2).png, photo.jpg, download (3).webp, etc.
+  // The plural 's' and parenthesised number are both optional.
+  const suspiciousPattern = /^(images?|photos?|downloads?|screenshots?|pictures?|imgs?|untitled|generated)\s*(\(\d+\))?\.\w+$/i
+  return suspiciousPattern.test(lower)
 }
 
 // ---- Main export ----
@@ -294,13 +295,15 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
       id: 'file_size',
       category: 'Quality',
       label: 'File Size Analysis',
-      severity: 'low',
-      found: false,
-      description: isJpeg && fileSizeMB < 0.05
-        ? `Very small JPEG (${(fileSizeMB * 1024).toFixed(0)} KB). Heavily compressed JPEGs can hide manipulation artifacts.`
-        : `File size: ${fileSizeMB < 1 ? (fileSizeMB * 1024).toFixed(0) + ' KB' : fileSizeMB.toFixed(1) + ' MB'}.`
+      severity: 'medium',
+      found: isJpeg && fileSizeMB < 0.03,
+      description: isJpeg && fileSizeMB < 0.03
+        ? `Very small JPEG (${(fileSizeMB * 1024).toFixed(0)} KB). Authentic camera photos are typically 300KB–10MB. Files this small are often downloaded web thumbnails or AI-generated images.`
+        : `File size: ${fileSizeMB < 1 ? (fileSizeMB * 1024).toFixed(0) + ' KB' : fileSizeMB.toFixed(1) + ' MB'} — within normal range.`
     }
   ]
+
+  const tinyFile = isJpeg && fileSizeMB < 0.03
 
   // ---- EXIF scoring ----
   let score = 70
@@ -308,7 +311,8 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
   if (aiSoftware) score -= 40
   if (!exif.make && !exif.model && exif.hasExif) score -= 10
   if (isFutureDate) score -= 25
-  if (suspiciousName) score -= 5
+  if (suspiciousName) score -= 15   // was -5; generic filenames are a strong signal
+  if (tinyFile) score -= 12         // tiny JPEG = likely web thumbnail or AI output
   if (exif.gpsLatitude !== undefined) score += 10
   if (exif.make || exif.model) score += 10
   if (exif.dateTime) score += 5
@@ -371,7 +375,7 @@ export async function analyzeImage(file: File): Promise<Omit<AnalysisResult, 'id
         if (!manipulationTools.some(t => t.includes('AI image generator'))) {
           manipulationTools.push(`AI image generator — GAN/diffusion model (${ganConfidence}% confidence)`)
         }
-      } else if (ganConfidence > 45) {
+      } else if (ganConfidence > 60) {
         score -= 8
       }
     } catch {

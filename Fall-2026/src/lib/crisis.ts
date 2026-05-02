@@ -23,8 +23,8 @@ export interface MediaAlert {
   priority: number // 1-100, higher = more urgent
 }
 
-const VIRAL_ALERTS_KEY = 'truthlens_viral_alerts'
-const MEDIA_ALERTS_KEY = 'truthlens_media_alerts'
+const VIRAL_ALERTS_KEY = 'realitycheck_viral_alerts'
+const MEDIA_ALERTS_KEY = 'realitycheck_media_alerts'
 
 // Current global crisis keywords (hardcoded for demo)
 const CRISIS_KEYWORDS = {
@@ -175,7 +175,7 @@ export interface LiveHeadline {
   socialimage?: string
 }
 
-const GDELT_CACHE_PREFIX = 'truthlens_gdelt_'
+const GDELT_CACHE_PREFIX = 'realitycheck_gdelt_'
 const GDELT_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 function parseGdeltDate(seendate: string): Date {

@@ -1,6 +1,6 @@
 import type { AnalysisResult } from './types'
 
-const STORAGE_KEY = 'truthlens_history'
+const STORAGE_KEY = 'realitycheck_history'
 const MAX_HISTORY = 50
 
 export function saveAnalysis(result: AnalysisResult): void {

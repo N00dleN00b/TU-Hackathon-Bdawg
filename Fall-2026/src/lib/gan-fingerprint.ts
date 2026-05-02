@@ -144,7 +144,7 @@ export async function analyzeForGAN(imageData: ImageData): Promise<GanAnalysis> 
   const score = calculateGANScore(signals, artifacts)
 
   return {
-    isLikelyAI: score >= 65,
+    isLikelyAI: score >= 72,
     confidence: score,
     signals,
     artifacts: artifacts.filter(a => a.found),
@@ -177,12 +177,12 @@ function detectFrequencyAnomalies(data: Uint8ClampedArray, width: number, height
 
 // Noise pattern inconsistencies
 function detectNoiseAnomalies(data: Uint8ClampedArray, width: number, height: number): boolean {
-  // GAN-generated images often have consistent noise patterns
-  // Real natural images have more random noise
-  
+  // AI images can have suspiciously uniform noise. However, JPEG compression
+  // naturally produces very low adjacent-pixel variance in smooth regions (skin,
+  // sky, fabric). We only flag at a very tight threshold to avoid false-positives.
   let noiseVariance = 0
-  const samples = Math.min(100, (width * height) / 256)
-  
+  const samples = Math.min(200, (width * height) / 128)
+
   for (let i = 0; i < samples; i++) {
     const x = Math.floor(Math.random() * (width - 1))
     const y = Math.floor(Math.random() * (height - 1))
@@ -190,93 +190,102 @@ function detectNoiseAnomalies(data: Uint8ClampedArray, width: number, height: nu
     const neighbor = getPixel(data, width, x + 1, y)
     noiseVariance += Math.abs(pixel[0] - neighbor[0])
   }
-  
+
   noiseVariance /= samples
-  // Natural images: 10-30 average diff, AI images: 5-15
-  return noiseVariance < 10
+  // Raised from 10 → 3: only flag near-absolute-zero noise (indicates heavy
+  // synthetic smoothing). JPEG + normal content averages 6-25 on this metric.
+  return noiseVariance < 3
 }
 
-// Symmetry bias (fake faces are too symmetric)
+// Symmetry bias (AI-generated faces are often unnaturally symmetric)
 function detectSymmetryBias(data: Uint8ClampedArray, width: number, height: number): boolean {
   if (width < 64) return false
-  
+
   const centerX = width / 2
   let symmetryScore = 0
-  const samples = Math.min(50, width * height / 1024)
-  
+  const samples = Math.min(100, width * height / 512)
+
   for (let i = 0; i < samples; i++) {
     const x = Math.floor(Math.random() * (centerX - 10)) + 10
     const y = Math.floor(Math.random() * height)
-    
+
     const leftPixel = getPixel(data, width, Math.floor(centerX - x), y)
     const rightPixel = getPixel(data, width, Math.floor(centerX + x), y)
-    
-    if (similar(leftPixel, rightPixel, 10)) symmetryScore++
+
+    // Tightened tolerance: 6 per channel (was 10) to avoid matching near-neutral tones
+    if (similar(leftPixel, rightPixel, 6)) symmetryScore++
   }
-  
-  // Natural faces: ~30-40% symmetric at boundaries, AI: 60%+
-  return (symmetryScore / samples) > 0.55
+
+  // Raised from 0.55 → 0.72. Natural portrait photos reach ~35-50% at this
+  // per-channel tolerance. GAN faces land at 75%+.
+  return (symmetryScore / samples) > 0.72
 }
 
-// Color channel anomalies
+// Color channel anomalies — detect unnaturally uniform color distribution
+// (the old "high-variance = AI" logic was backwards: vibrant real photos have
+// high per-pixel RGB spread, so that approach always flagged colourful images)
 function detectColorAnomalies(data: Uint8ClampedArray, width: number, height: number): boolean {
-  let colorMisalignment = 0
-  const samples = 50
-  
+  const samples = 200
+  const buckets = new Array(8).fill(0) // Divide 0-255 into 8 hue buckets
+
   for (let i = 0; i < samples; i++) {
-    const x = Math.floor(Math.random() * (width - 1))
-    const y = Math.floor(Math.random() * (height - 1))
-    
+    const x = Math.floor(Math.random() * width)
+    const y = Math.floor(Math.random() * height)
     const idx = (y * width + x) * 4
-    const r = data[idx]
-    const g = data[idx + 1]
-    const b = data[idx + 2]
-    
-    // RGB variance: AI images often show color bleeding
-    const variance = Math.abs(r - g) + Math.abs(g - b) + Math.abs(r - b)
-    if (variance > 150) colorMisalignment++
+    const r = data[idx], g = data[idx + 1], b = data[idx + 2]
+    const hue = Math.round(Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * (4 / Math.PI) + 4) % 8
+    buckets[hue]++
   }
-  
-  return (colorMisalignment / samples) > 0.4
+
+  // AI generators often produce unnaturally even hue distributions.
+  // Flag only if colour spread is suspiciously uniform (CV < 0.25).
+  const mean = samples / 8
+  const variance = buckets.reduce((acc, v) => acc + (v - mean) ** 2, 0) / 8
+  const cv = Math.sqrt(variance) / mean
+  return cv < 0.25
 }
 
 // Texture synthesis errors
 function detectTextureAnomalies(data: Uint8ClampedArray, width: number, height: number): boolean {
-  // Detect repetitive texture blocks typical of generative models
+  // Detect repetitive texture blocks typical of generative models.
+  // JPEG DCT quantisation naturally creates similar adjacent blocks in flat
+  // areas, so the threshold is raised significantly (0.15 → 0.40) to only
+  // flag images with a pathologically high repetition rate.
   const blockSize = 8
   let repeatedBlocks = 0
   let totalBlocks = 0
-  
+
   for (let y = 0; y < height - blockSize * 2; y += blockSize) {
     for (let x = 0; x < width - blockSize * 2; x += blockSize) {
       totalBlocks++
       const hash1 = blockHash(data, width, x, y, blockSize)
       const hash2 = blockHash(data, width, x + blockSize, y, blockSize)
-      
       if (hash1 === hash2) repeatedBlocks++
     }
   }
-  
-  return (repeatedBlocks / Math.max(1, totalBlocks)) > 0.15
+
+  return (repeatedBlocks / Math.max(1, totalBlocks)) > 0.40
 }
 
 // Anatomical oddities (extra fingers, strange features)
 function detectAnatomicalOddities(data: Uint8ClampedArray, width: number, height: number): boolean {
-  // Simplified: Look for statistical anomalies in edge detection
-  // Real implementation would use face detection + keypoint analysis
-  
+  // Looks for unusually dense edge clusters — a proxy for AI incoherence.
+  // The old threshold of > 10 was near-zero: any portrait with glasses, hair,
+  // or text in the background triggered it immediately. Threshold is now
+  // scaled to image area so it only fires for genuinely anomalous edge density.
   const edges = detectEdges(data, width, height)
   let anomalies = 0
-  
+
   for (let i = 0; i < edges.length; i++) {
     if (edges[i] > 200) {
-      // Unusually sharp edge - could be artifact
       const neighbors = edges.slice(Math.max(0, i - 5), i + 5).filter(e => e > 200)
       if (neighbors.length > 8) anomalies++
     }
   }
-  
-  return anomalies > 10
+
+  // Scale with image size: require anomaly density > 0.15% of pixels
+  const threshold = Math.max(100, Math.floor((width * height) * 0.0015))
+  return anomalies > threshold
 }
 
 // Helper functions
@@ -323,20 +332,21 @@ function detectEdges(data: Uint8ClampedArray, width: number, height: number): nu
 }
 
 function calculateGANScore(signals: GanSignal[], artifacts: Artifact[]): number {
-  let score = 50 // Baseline
-  
-  // Weight signals by severity
+  // Baseline lowered from 50 → 10. Starting at 50 meant two medium signals
+  // automatically crossed the old 65% threshold — every JPEG was "AI".
+  // Scores only climb meaningfully when multiple independent signals fire.
+  let score = 10
+
   signals.forEach(s => {
     if (s.detected) {
-      if (s.severity === 'high') score += 15
-      else if (s.severity === 'medium') score += 8
-      else score += 3
+      if (s.severity === 'high') score += 18
+      else if (s.severity === 'medium') score += 10
+      else score += 4
     }
   })
-  
-  // Each detected artifact adds points
-  score += artifacts.filter(a => a.found).length * 5
-  
+
+  score += artifacts.filter(a => a.found).length * 4
+
   return Math.min(100, Math.max(0, score))
 }
 

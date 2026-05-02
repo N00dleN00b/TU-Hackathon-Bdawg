@@ -83,7 +83,7 @@ export default function CrisisMode() {
     if (!alert) return
     // Clear sessionStorage cache for this query so we get fresh data
     const query = CATEGORY_GDELT_QUERIES[alert.category] ?? CATEGORY_GDELT_QUERIES.other
-    try { sessionStorage.removeItem('truthlens_gdelt_' + query.slice(0, 40)) } catch { /* */ }
+    try { sessionStorage.removeItem('realitycheck_gdelt_' + query.slice(0, 40)) } catch { /* */ }
     loadHeadlines(query)
   }
 

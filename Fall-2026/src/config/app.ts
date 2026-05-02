@@ -11,9 +11,9 @@ type AppConfigType = {
 }
 
 export const appConfig: AppConfigType = {
-    name: import.meta.env.VITE_APP_NAME ?? "TruthLens",
+    name: import.meta.env.VITE_APP_NAME ?? "RealityCheck",
     github: {
-        title: "TruthLens — TU Hackathon Fall 2026",
+        title: "RealityCheck — TU Hackathon Fall 2026",
         url: "https://github.com/",
     },
     author: {

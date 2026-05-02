@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ScanText, History, BookOpen, ShieldCheck, Zap, Brain } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { RealityCheckIcon } from '@/components/app-logo'
 
 const STATS = [
   { label: 'Detection Signals', value: '11', desc: 'Heuristic checks per analysis' },
@@ -50,7 +51,7 @@ const HOW_IT_WORKS = [
   {
     step: '02',
     title: 'Instant Scan',
-    desc: 'TruthLens runs 11 manipulation signal checks in milliseconds — no server required.'
+    desc: 'RealityCheck runs 11 manipulation signal checks in milliseconds — no server required.'
   },
   {
     step: '03',
@@ -69,6 +70,9 @@ export default function Dashboard() {
     <div className="space-y-12 py-4">
       {/* Hero */}
       <section className="text-center space-y-5 pt-6">
+        <div className="flex justify-center">
+          <RealityCheckIcon className="size-24 text-primary opacity-90" />
+        </div>
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
           <ShieldCheck className="size-4" />
           TU Hackathon Fall 2026 — Media Trust Project
@@ -77,7 +81,7 @@ export default function Dashboard() {
           Stop Sharing.<br className="hidden sm:block" /> Start Verifying.
         </h1>
         <p className="max-w-xl mx-auto text-muted-foreground text-lg leading-relaxed">
-          TruthLens is the Shazam for disinformation. In seconds, identify manipulation signals,
+          RealityCheck is the Shazam for disinformation. In seconds, identify manipulation signals,
           deepfake indicators, and the tools used to deceive — all in your browser, all free.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -154,7 +158,7 @@ export default function Dashboard() {
       <section className="text-center py-4 border rounded-xl bg-muted/30 space-y-4">
         <h2 className="text-xl font-bold">Ready to test it?</h2>
         <p className="text-muted-foreground text-sm">
-          Grab any news article you're unsure about and run it through TruthLens right now.
+          Grab any news article you're unsure about and run it through RealityCheck right now.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild size="lg" className="gap-2">

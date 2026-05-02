@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle, Clock, Film } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, Film, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { VideoAnalysis } from '@/lib/video-detection'
@@ -16,7 +16,38 @@ const ISSUE_LABELS: Record<string, string> = {
   compression: 'Compression Artifacts',
 }
 
+type ConfidenceTier = {
+  label: string
+  cls: string
+  description: string
+}
+
+function getVideoConfidenceTier(confidence: number): ConfidenceTier {
+  if (confidence >= 85) return {
+    label: 'High Confidence — Deepfake',
+    cls: 'border-red-400 text-red-600 dark:text-red-400',
+    description: 'Multiple critical indicators detected. Do not share without expert verification.',
+  }
+  if (confidence >= 70) return {
+    label: 'Likely Manipulated',
+    cls: 'border-orange-400 text-orange-600 dark:text-orange-400',
+    description: 'Significant deepfake signals found. Exercise strong caution.',
+  }
+  if (confidence >= 40) return {
+    label: 'Inconclusive',
+    cls: 'border-yellow-400 text-yellow-600 dark:text-yellow-400',
+    description: 'Some anomalies present but insufficient for a confident verdict. Verify the source.',
+  }
+  return {
+    label: 'Likely Authentic',
+    cls: 'border-green-400 text-green-600 dark:text-green-400',
+    description: 'Low anomaly scores. Minor variance is normal for compressed video.',
+  }
+}
+
 export function VideoResultCard({ result }: Props) {
+  const tier = getVideoConfidenceTier(result.confidence)
+
   return (
     <div className="space-y-4">
       {/* Verdict */}
@@ -45,7 +76,18 @@ export function VideoResultCard({ result }: Props) {
               }}
             />
           </div>
+          {/* Confidence tier label */}
+          <Badge variant="outline" className={`text-xs px-2.5 ${tier.cls}`}>
+            {tier.label}
+          </Badge>
           <p className="text-xs text-muted-foreground leading-relaxed px-2">{result.summary}</p>
+          {/* Disclosure */}
+          <div className="flex items-start gap-1.5 bg-muted/40 rounded-md px-3 py-2 text-left w-full mt-1">
+            <Info className="size-3 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {tier.description} This analysis uses heuristic frame-pattern detection, not pixel-level neural inspection — treat results as indicators, not proof.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

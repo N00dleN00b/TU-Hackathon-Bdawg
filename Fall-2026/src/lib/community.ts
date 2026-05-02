@@ -26,9 +26,9 @@ export interface CommunityConsensus {
   weightedScore: number // voted by high-reputation users
 }
 
-const COMMUNITY_VOTES_KEY = 'truthlens_community_votes'
-const USER_ID_KEY = 'truthlens_user_id'
-const USER_REP_KEY = 'truthlens_user_rep'
+const COMMUNITY_VOTES_KEY = 'realitycheck_community_votes'
+const USER_ID_KEY = 'realitycheck_user_id'
+const USER_REP_KEY = 'realitycheck_user_rep'
 
 // Get or create anonymous but consistent user ID
 export function getUserId(): string {

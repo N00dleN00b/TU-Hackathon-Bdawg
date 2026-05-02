@@ -1,5 +1,4 @@
-// Barebone AI Assistant: Keyword-based Hardcoded Responses
-// No external API — pure client-side logic
+// AI Assistant: Keyword-based fallback + optional Groq-powered mode
 
 export interface AssistantMessage {
   id: string
@@ -20,7 +19,7 @@ const RESPONSES: Record<string, { patterns: string[], responses: string[] }> = {
       'how to detect', 'is this real', 'is this fake', 'looks manipulated'
     ],
     responses: [
-      'Deepfakes use AI to swap faces or create synthetic media. Look for: unnatural blinking, lighting inconsistencies, lip-sync issues, and artifacts around edges. TruthLens detects these automatically.',
+      'Deepfakes use AI to swap faces or create synthetic media. Look for: unnatural blinking, lighting inconsistencies, lip-sync issues, and artifacts around edges. RealityCheck detects these automatically.',
       'AI-generated faces often have symmetry issues, unnatural eye reflections, and odd pupils. Upload an image for instant detection — our GAN fingerprinting catches 94% of AI images.',
       'Video deepfakes show: jerky head movements, unnatural skin tones, audio/lips out of sync, and strange eye reflections. We analyze frame-by-frame for these inconsistencies.'
     ]
@@ -70,7 +69,7 @@ const RESPONSES: Record<string, { patterns: string[], responses: string[] }> = {
     responses: [
       'Video deepfakes: unnatural blinking (happens too often/rarely), jerky head motion, skin tone shifts, flickering lighting, lips out of sync with audio. Audio deepfakes: robotic tone, unnatural breathing, wrong accent/voice patterns.',
       'Voice cloning is becoming scary—a few seconds of audio can train AI to sound like anyone. Flag: slightly off timing, robotic inflections, unnatural pauses, missing background noise.',
-      'We\'re adding video frame-by-frame analysis: optical flow detection (unnatural motion), audio spectral analysis (synthetic vs real), and lip-sync verification. Coming soon to TruthLens.'
+      'We\'re adding video frame-by-frame analysis: optical flow detection (unnatural motion), audio spectral analysis (synthetic vs real), and lip-sync verification. Coming soon to RealityCheck.'
     ]
   },
   
@@ -104,7 +103,7 @@ const RESPONSES: Record<string, { patterns: string[], responses: string[] }> = {
       'start', 'getting started'
     ],
     responses: [
-      'TruthLens helps you verify news, images, and media for deepfakes & misinformation. Paste text or upload an image → get a trust score + detecting signals → see what manipulation tools might have been used.',
+      'RealityCheck helps you verify news, images, and media for deepfakes & misinformation. Paste text or upload an image → get a trust score + detecting signals → see what manipulation tools might have been used.',
       'Features: Text & image analysis (11 detection signals), AI enhancement (Groq), community voting, crisis mode alerts, media literacy hub, and soon video/audio analysis.',
       'Start here: (1) Paste suspicious text or upload an image, (2) Review the trust score & detected signals, (3) Vote on credibility to help others, (4) Check History for past analyses.'
     ]
@@ -151,15 +150,65 @@ export function createAssistantMessage(content: string, role: 'user' | 'assistan
   }
 }
 
-// Simulate typing effect
+// Simulate typing effect for keyword-mode responses
 export async function* streamResponse(message: string): AsyncGenerator<string> {
   const response = getAssistantResponse(message)
-  
-  // Yield character by character for typing effect
+
   for (let i = 0; i < response.length; i += 3) {
     yield response.slice(0, i + Math.random() * 3)
     await new Promise(r => setTimeout(r, 20))
   }
-  
+
   yield response
+}
+
+const GROQ_SYSTEM_PROMPT = `You are RealityCheck AI, a concise media literacy and fact-checking assistant. You help users:
+- Detect deepfakes and manipulated images, video, and audio
+- Fact-check news articles and social media claims using the SIFT method
+- Identify misinformation red flags (emotional language, vague sourcing, missing authors, unverified claims)
+- Verify sources using Snopes, PolitiFact, FactCheck.org, MediaBias/FactCheck, and AP Fact Check
+- Understand forensic signals: EXIF metadata, GAN artifacts, spectral audio analysis, C2PA manifests
+
+When a user shares a claim or article text, provide:
+1. A one-line credibility assessment
+2. 2-3 specific red flags or green flags
+3. Concrete next steps (specific sites or methods)
+
+Keep responses under 5 sentences unless doing a detailed fact-check. Be direct and actionable.`
+
+// Groq-powered chat — uses actual LLM if an API key is available.
+// Keeps the last 6 messages as context so the assistant can follow multi-turn conversations.
+export async function chatWithGroq(
+  message: string,
+  apiKey: string,
+  history: AssistantMessage[]
+): Promise<string> {
+  const messages = [
+    { role: 'system', content: GROQ_SYSTEM_PROMPT },
+    ...history.slice(-6).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user' as const, content: message },
+  ]
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature: 0.4,
+      max_tokens: 500,
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    console.error('Groq assistant error:', response.status, err)
+    throw new Error(`Groq error ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content ?? 'No response received. Please try again.'
 }

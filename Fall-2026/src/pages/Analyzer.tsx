@@ -17,6 +17,7 @@ import { TrustMeter } from '@/components/TrustMeter'
 import { SignalList } from '@/components/SignalList'
 import { VideoResultCard } from '@/components/VideoResultCard'
 import { AudioResultCard } from '@/components/AudioResultCard'
+import { RealityCheckIcon } from '@/components/app-logo'
 import { analyzeText } from '@/lib/textAnalysis'
 import { analyzeImage } from '@/lib/imageAnalysis'
 import { analyzeVideo } from '@/lib/video-detection'
@@ -69,7 +70,7 @@ export default function Analyzer() {
   const audioInputRef = useRef<HTMLInputElement>(null)
 
   // Groq
-  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('truthlens_groq_key') ?? '')
+  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('realitycheck_groq_key') ?? '')
   const [showApiKey, setShowApiKey] = useState(false)
 
   // State
@@ -83,8 +84,8 @@ export default function Analyzer() {
 
   const saveKey = (key: string) => {
     setGroqKey(key)
-    if (key) localStorage.setItem('truthlens_groq_key', key)
-    else localStorage.removeItem('truthlens_groq_key')
+    if (key) localStorage.setItem('realitycheck_groq_key', key)
+    else localStorage.removeItem('realitycheck_groq_key')
   }
 
   const clearAllResults = () => {
@@ -567,7 +568,7 @@ export default function Analyzer() {
           {!hasResult && !isAnalyzing && (
             <Card className="border-dashed">
               <CardContent className="pt-8 pb-8 text-center">
-                <ScanText className="size-12 mx-auto text-muted-foreground/40 mb-3" />
+                <RealityCheckIcon className="size-14 mx-auto text-muted-foreground/30 mb-3" />
                 <p className="text-sm text-muted-foreground">
                   Results will appear here after analysis
                 </p>
@@ -629,14 +630,21 @@ export default function Analyzer() {
                       <Sparkles className="size-3 text-purple-500" /> AI Enhanced
                     </Badge>
                   )}
-                  {activeTab === 'image' && result.ganConfidence !== undefined && result.ganConfidence > 0 && (
-                    <Badge
-                      variant="outline"
-                      className={`text-xs gap-1 ${result.ganIsAI ? 'border-red-400 text-red-600 dark:text-red-400' : 'border-green-400 text-green-600 dark:text-green-400'}`}
-                    >
-                      GAN: {result.ganIsAI ? `AI-generated (${result.ganConfidence}%)` : `Likely authentic (${result.ganConfidence}% AI score)`}
-                    </Badge>
-                  )}
+                  {activeTab === 'image' && result.ganConfidence !== undefined && result.ganConfidence > 0 && (() => {
+                    const c = result.ganConfidence
+                    const [label, cls] = result.ganIsAI
+                      ? [`AI-generated (${c}%)`, 'border-red-400 text-red-600 dark:text-red-400']
+                      : c >= 50
+                        ? [`Moderate AI signals (${c}%)`, 'border-orange-400 text-orange-600 dark:text-orange-400']
+                        : c >= 20
+                          ? [`Inconclusive — ${c}% AI score`, 'border-yellow-400 text-yellow-600 dark:text-yellow-400']
+                          : [`Low AI signals (${c}%)`, 'border-green-400 text-green-600 dark:text-green-400']
+                    return (
+                      <Badge variant="outline" className={`text-xs gap-1 ${cls}`}>
+                        GAN: {label}
+                      </Badge>
+                    )
+                  })()}
                   <p className="text-sm text-muted-foreground text-center leading-relaxed px-2">
                     {result.summary}
                   </p>

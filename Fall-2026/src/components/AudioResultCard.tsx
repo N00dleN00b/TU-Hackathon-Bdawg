@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle, Mic, Volume2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Info, Mic, Volume2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { AudioAnalysis } from '@/lib/audio-forensics'
@@ -14,7 +14,34 @@ function fmtDuration(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
+type ConfidenceTier = { label: string; cls: string; description: string }
+
+function getAudioConfidenceTier(confidence: number): ConfidenceTier {
+  if (confidence >= 80) return {
+    label: 'Very High Risk — Synthetic',
+    cls: 'border-red-400 text-red-600 dark:text-red-400',
+    description: 'Multiple critical voice-synthesis signals detected. Do not trust this audio without independent verification.',
+  }
+  if (confidence >= 68) return {
+    label: 'Possibly Synthetic',
+    cls: 'border-orange-400 text-orange-600 dark:text-orange-400',
+    description: 'Detected patterns associated with AI voice generation. Recommend verifying the source.',
+  }
+  if (confidence >= 35) return {
+    label: 'Inconclusive',
+    cls: 'border-yellow-400 text-yellow-600 dark:text-yellow-400',
+    description: 'Some anomalies found but these can also appear in compressed or noise-reduced authentic audio.',
+  }
+  return {
+    label: 'Likely Authentic',
+    cls: 'border-green-400 text-green-600 dark:text-green-400',
+    description: 'No significant voice-cloning or synthesis signals detected.',
+  }
+}
+
 export function AudioResultCard({ result }: Props) {
+  const tier = getAudioConfidenceTier(result.confidence)
+
   return (
     <div className="space-y-4">
       {/* Verdict */}
@@ -43,7 +70,18 @@ export function AudioResultCard({ result }: Props) {
               }}
             />
           </div>
+          {/* Confidence tier label */}
+          <Badge variant="outline" className={`text-xs px-2.5 ${tier.cls}`}>
+            {tier.label}
+          </Badge>
           <p className="text-xs text-muted-foreground leading-relaxed px-2">{result.summary}</p>
+          {/* Disclosure */}
+          <div className="flex items-start gap-1.5 bg-muted/40 rounded-md px-3 py-2 text-left w-full mt-1">
+            <Info className="size-3 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {tier.description} Statistical analysis only — MP3/AAC compression and noise reduction can affect results. Not a substitute for expert audio forensics.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
