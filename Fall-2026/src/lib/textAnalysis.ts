@@ -54,6 +54,11 @@ function countMatches(text: string, patterns: string[]): number {
   return patterns.filter(p => lower.includes(p)).length
 }
 
+function getMatchedPhrases(text: string, patterns: string[]): string[] {
+  const lower = text.toLowerCase()
+  return patterns.filter(p => lower.includes(p))
+}
+
 function countAllCaps(text: string): number {
   const words = text.split(/\s+/)
   return words.filter(w => w.length > 3 && w === w.toUpperCase() && /[A-Z]/.test(w)).length
@@ -116,6 +121,14 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
   const reliableCount = countMatches(text, RELIABLE_SIGNALS)
   const allCapsCount = countAllCaps(text)
   const excessPunctuation = countExcessivePunctuation(text)
+
+  const emotionalMatches = getMatchedPhrases(text, EMOTIONAL_TRIGGERS)
+  const vagueMatches = getMatchedPhrases(text, VAGUE_ATTRIBUTION)
+  const fallacyMatches = getMatchedPhrases(text, LOGICAL_FALLACIES)
+  const aiMatches = getMatchedPhrases(text, AI_TEXT_PATTERNS)
+  const clickbaitMatches = getMatchedPhrases(text, CLICKBAIT_PATTERNS)
+  const capsWords = text.split(/\s+/).filter(w => w.length > 3 && w === w.toUpperCase() && /[A-Z]/.test(w))
+  const punctInstances = text.match(/[!?]{2,}/g) ?? []
   const hasAuthor = hasAuthorAttribution(text)
   const hasDate = hasDateAttribution(text)
   const hasSources = hasSourceLinks(text)
@@ -129,7 +142,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: emotionalCount >= 2,
       description: emotionalCount >= 2
         ? `Found ${emotionalCount} emotional trigger phrases designed to provoke strong reactions without evidence.`
-        : 'Language appears relatively measured without excessive emotional triggers.'
+        : 'Language appears relatively measured without excessive emotional triggers.',
+      matchedExcerpts: emotionalMatches,
     },
     {
       id: 'vague_sources',
@@ -139,7 +153,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: vagueSources >= 1,
       description: vagueSources >= 1
         ? `Found ${vagueSources} instances of vague attribution ("some say", "sources claim") with no verifiable sources.`
-        : 'No vague attribution patterns detected.'
+        : 'No vague attribution patterns detected.',
+      matchedExcerpts: vagueMatches,
     },
     {
       id: 'attribution',
@@ -183,7 +198,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: fallacyCount >= 1,
       description: fallacyCount >= 1
         ? `Detected ${fallacyCount} logical fallacy pattern(s) (ad hominem, straw man, appeal to authority).`
-        : 'No obvious logical fallacy patterns detected.'
+        : 'No obvious logical fallacy patterns detected.',
+      matchedExcerpts: fallacyMatches,
     },
     {
       id: 'ai_text',
@@ -193,7 +209,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: aiPatternCount >= 2,
       description: aiPatternCount >= 2
         ? `Found ${aiPatternCount} AI-generated text patterns. This content may have been produced or heavily edited by an AI language model.`
-        : 'No strong AI-generated text patterns detected.'
+        : 'No strong AI-generated text patterns detected.',
+      matchedExcerpts: aiMatches,
     },
     {
       id: 'clickbait',
@@ -203,7 +220,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: clickbaitCount >= 1,
       description: clickbaitCount >= 1
         ? `Found ${clickbaitCount} clickbait pattern(s) designed to drive engagement without informing.`
-        : 'No clickbait patterns detected.'
+        : 'No clickbait patterns detected.',
+      matchedExcerpts: clickbaitMatches,
     },
     {
       id: 'caps',
@@ -213,7 +231,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: allCapsCount >= 2,
       description: allCapsCount >= 2
         ? `Found ${allCapsCount} ALL-CAPS word(s). Excessive caps are a common manipulation tactic to create urgency.`
-        : 'No excessive capitalization found.'
+        : 'No excessive capitalization found.',
+      matchedExcerpts: capsWords.slice(0, 8),
     },
     {
       id: 'punctuation',
@@ -223,7 +242,8 @@ export function analyzeText(text: string): Omit<AnalysisResult, 'id' | 'timestam
       found: excessPunctuation >= 2,
       description: excessPunctuation >= 2
         ? `Found ${excessPunctuation} instance(s) of repeated punctuation (!!!???). A sign of sensationalism.`
-        : 'Punctuation appears normal.'
+        : 'Punctuation appears normal.',
+      matchedExcerpts: punctInstances.slice(0, 6),
     },
     {
       id: 'length',

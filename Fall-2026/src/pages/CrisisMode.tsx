@@ -43,6 +43,7 @@ export default function CrisisMode() {
   const [headlines, setHeadlines] = useState<LiveHeadline[]>([])
   const [headlinesLoading, setHeadlinesLoading] = useState(false)
   const [headlinesError, setHeadlinesError] = useState(false)
+  const [headlinesDemoMode, setHeadlinesDemoMode] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
   useEffect(() => {
@@ -66,11 +67,15 @@ export default function CrisisMode() {
   const loadHeadlines = async (query: string) => {
     setHeadlinesLoading(true)
     setHeadlinesError(false)
+    setHeadlinesDemoMode(false)
     try {
+      // fetchLiveHeadlines never throws — it falls back to demo data on failure
       const data = await fetchLiveHeadlines(query)
       setHeadlines(data)
       setLastRefresh(new Date())
-      if (data.length === 0) setHeadlinesError(true)
+      // Check if we got demo data (demo items have reuters.com/apnews.com etc. as urls directly)
+      const isDemo = data.length > 0 && (data[0].url === 'https://reuters.com' || data[0].url === 'https://apnews.com' || data[0].url === 'https://bbc.com' || data[0].url === 'https://snopes.com' || data[0].url === 'https://cnbc.com' || data[0].url === 'https://mit.edu')
+      setHeadlinesDemoMode(isDemo)
     } catch {
       setHeadlinesError(true)
     } finally {
@@ -162,12 +167,17 @@ export default function CrisisMode() {
               {/* ---- Live GDELT headlines ---- */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold flex items-center gap-2">
+                  <h3 className="font-semibold flex items-center gap-2 flex-wrap">
                     <TrendingUp className="size-4" />
                     Live Headlines
                     {lastRefresh && (
                       <span className="text-xs text-muted-foreground font-normal">
                         · refreshed {formatDate(lastRefresh.getTime())}
+                      </span>
+                    )}
+                    {headlinesDemoMode && (
+                      <span className="text-[10px] font-normal text-muted-foreground border rounded-full px-2 py-0.5">
+                        curated demo — GDELT offline
                       </span>
                     )}
                   </h3>
@@ -188,17 +198,6 @@ export default function CrisisMode() {
                     <CardContent className="pt-6 pb-6 flex flex-col items-center gap-3">
                       <Loader2 className="size-6 animate-spin text-primary" />
                       <p className="text-sm text-muted-foreground">Fetching live data from GDELT...</p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {!headlinesLoading && headlinesError && (
-                  <Card className="border-dashed">
-                    <CardContent className="pt-6 pb-6 text-center">
-                      <p className="text-sm text-muted-foreground">
-                        Could not load live headlines. Check your internet connection or{' '}
-                        <button className="underline" onClick={handleRefresh}>try again</button>.
-                      </p>
                     </CardContent>
                   </Card>
                 )}

@@ -9,6 +9,7 @@ export interface Signal {
   severity: SignalSeverity
   found: boolean
   description: string
+  matchedExcerpts?: string[]
 }
 
 export interface AnalysisResult {

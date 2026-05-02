@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import {
   Loader2, ScanText, Image as ImageIcon, Sparkles, Wrench,
   ChevronDown, ChevronUp, Key, UploadCloud, X, AlertTriangle,
-  Film, Mic,
+  Film, Mic, Flag, Search, ExternalLink, CheckCircle2, BookOpen,
 } from 'lucide-react'
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/page-header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -18,6 +18,7 @@ import { SignalList } from '@/components/SignalList'
 import { VideoResultCard } from '@/components/VideoResultCard'
 import { AudioResultCard } from '@/components/AudioResultCard'
 import { RealityCheckIcon } from '@/components/app-logo'
+import { HighlightedText } from '@/components/HighlightedText'
 import { analyzeText } from '@/lib/textAnalysis'
 import { analyzeImage } from '@/lib/imageAnalysis'
 import { analyzeVideo } from '@/lib/video-detection'
@@ -39,6 +40,37 @@ const SAMPLE_TEXTS = [
     text: `According to a new study published in the New England Journal of Medicine on April 15, 2025, researchers at Johns Hopkins University found that regular exercise reduces the risk of cardiovascular disease by 35%. The study, led by Dr. Sarah Chen, followed 12,000 participants over 10 years. "Our findings confirm what previous research has suggested, but with a much larger sample size," Dr. Chen said in an official statement. The research was funded by the National Institutes of Health. Full data is available at nejm.org.`
   }
 ]
+
+const TECHNIQUE_EXPLAIN: Record<string, { tech: string; explain: string }> = {
+  ai_text: {
+    tech: 'LLM-generated content signature',
+    explain: 'Language models produce characteristic patterns: formulaic transitions ("furthermore", "it is worth noting"), unnatural structural coherence, and overused hedge phrases — often present even after light human editing.',
+  },
+  emotional: {
+    tech: 'Emotional manipulation / threat framing',
+    explain: 'Charged language exploits the threat-response reflex to bypass rational evaluation — a core propaganda technique designed to trigger sharing before critical thought.',
+  },
+  logical_fallacy: {
+    tech: 'Logical fallacies (ad hominem / false dichotomy)',
+    explain: 'Personal attacks and forced binary choices distract from absent evidence. A hallmark of manufactured controversy where the argument can\'t stand on facts alone.',
+  },
+  vague_sources: {
+    tech: 'Source laundering',
+    explain: '"Sources say" and "experts claim" create false credibility without accountability. Credible journalism names its sources or explains why they are protected.',
+  },
+  clickbait: {
+    tech: 'Engagement-bait framing',
+    explain: 'BREAKING / MUST READ signals optimize for virality over accuracy — characteristic of algorithmic manipulation rather than truth-seeking journalism.',
+  },
+  caps: {
+    tech: 'Visual urgency injection (ALL CAPS)',
+    explain: 'Excessive capitalization artificially amplifies emotional arousal and manufactured urgency. Professional journalism avoids it for this reason.',
+  },
+  punctuation: {
+    tech: 'Sensationalism markers (!!!)',
+    explain: 'Repeated punctuation is a rhetorical device to manufacture excitement — a direct signal of content prioritizing emotional impact over informational accuracy.',
+  },
+}
 
 const ANALYZING_MESSAGES: Record<string, string> = {
   text: '11 signals + optional AI analysis',
@@ -81,6 +113,8 @@ export default function Analyzer() {
   const [showAllSignals, setShowAllSignals] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [crisisAlert, setCrisisAlert] = useState<string | null>(null)
+  const [reportingPlatform, setReportingPlatform] = useState<string | null>(null)
+  const [reportedPlatforms, setReportedPlatforms] = useState<Set<string>>(new Set())
 
   const saveKey = (key: string) => {
     setGroqKey(key)
@@ -94,6 +128,8 @@ export default function Analyzer() {
     setAudioResult(null)
     setError(null)
     setCrisisAlert(null)
+    setReportingPlatform(null)
+    setReportedPlatforms(new Set())
   }
 
   const handleTabChange = (tab: string) => {
@@ -719,6 +755,128 @@ export default function Analyzer() {
                         </li>
                       ))}
                     </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* XAI: Why is this flagged */}
+              {(['suspicious', 'manipulated'] as const).includes(result.verdict) && (() => {
+                const techniques = result.signals
+                  .filter(s => s.found && TECHNIQUE_EXPLAIN[s.id])
+                  .map(s => TECHNIQUE_EXPLAIN[s.id])
+                if (techniques.length === 0) return null
+                return (
+                  <Card className="border-orange-200/50 bg-orange-50/30 dark:bg-orange-950/10">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <BookOpen className="size-4 text-orange-500" />
+                        Why This Is Flagged — Technical Analysis
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Specific manipulation techniques identified in this content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {techniques.map((t, i) => (
+                        <div key={i} className="flex gap-2.5">
+                          <span className="text-orange-500 text-xs shrink-0 mt-0.5 font-bold">▸</span>
+                          <div>
+                            <p className="text-xs font-semibold">{t.tech}</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{t.explain}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )
+              })()}
+
+              {/* Highlighted text view (text tab only) */}
+              {activeTab === 'text' && text && result.signals.some(s => s.found && s.matchedExcerpts?.length) && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <ScanText className="size-4" />
+                      Highlighted Analysis
+                    </CardTitle>
+                    <CardDescription className="text-xs flex gap-3">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="size-2.5 rounded-sm bg-red-200 dark:bg-red-800 inline-block" /> High risk
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="size-2.5 rounded-sm bg-amber-200 dark:bg-amber-800 inline-block" /> Medium risk
+                      </span>
+                      <span className="text-muted-foreground">Hover a highlight for signal name</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="max-h-56 overflow-y-auto">
+                    <HighlightedText text={text} signals={result.signals} />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Reverse image search (image tab only) */}
+              {activeTab === 'image' && imageFile && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Search className="size-4" />
+                      Reverse Image Search
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Check if this image appeared elsewhere online — open a tool and upload the file.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    {[
+                      { name: 'Google Lens', url: 'https://lens.google.com/' },
+                      { name: 'TinEye', url: 'https://tineye.com/' },
+                      { name: 'Yandex Images', url: 'https://yandex.com/images/' },
+                    ].map(s => (
+                      <Button key={s.name} variant="outline" size="sm" className="text-xs gap-1.5" asChild>
+                        <a href={s.url} target="_blank" rel="noreferrer noopener">
+                          <ExternalLink className="size-3" /> {s.name}
+                        </a>
+                      </Button>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Report to Platform */}
+              {(['suspicious', 'manipulated'] as const).includes(result.verdict) && (
+                <Card className="border-red-200/40 dark:border-red-900/40">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Flag className="size-4 text-red-500" />
+                      Report to Platform
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Simulate escalating this content to a platform trust & safety team.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    {['X / Twitter', 'Facebook', 'TikTok', 'YouTube', 'WhatsApp'].map(platform => (
+                      <Button
+                        key={platform}
+                        variant={reportedPlatforms.has(platform) ? 'secondary' : 'outline'}
+                        size="sm"
+                        className="text-xs gap-1.5"
+                        disabled={reportingPlatform === platform || reportedPlatforms.has(platform)}
+                        onClick={async () => {
+                          setReportingPlatform(platform)
+                          await new Promise(r => setTimeout(r, 1500))
+                          setReportingPlatform(null)
+                          setReportedPlatforms(prev => new Set([...prev, platform]))
+                        }}
+                      >
+                        {reportingPlatform === platform ? (
+                          <><Loader2 className="size-3 animate-spin" /> Reporting...</>
+                        ) : reportedPlatforms.has(platform) ? (
+                          <><CheckCircle2 className="size-3 text-green-500" /> Reported</>
+                        ) : platform}
+                      </Button>
+                    ))}
                   </CardContent>
                 </Card>
               )}
