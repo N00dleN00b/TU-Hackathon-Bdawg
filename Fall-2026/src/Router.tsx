@@ -8,6 +8,7 @@ import Learn from './pages/Learn'
 import Community from './pages/Community'
 import CrisisMode from './pages/CrisisMode'
 import Assistant from './pages/Assistant'
+import Roadmap from './pages/Roadmap'
 
 export default function Router() {
     return (
@@ -20,6 +21,7 @@ export default function Router() {
                 <Route path="community" element={<Community />} />
                 <Route path="crisis" element={<CrisisMode />} />
                 <Route path="assistant" element={<Assistant />} />
+                <Route path="roadmap" element={<Roadmap />} />
                 <Route path="*" element={<NotMatch />} />
             </Route>
         </Routes>
