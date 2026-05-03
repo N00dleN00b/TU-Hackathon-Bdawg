@@ -103,7 +103,7 @@ export default function Dashboard() {
 
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary ring-1 ring-primary/20 terminal-cursor">
           <ShieldCheck className="size-4" />
-          TU Hackathon Fall 2026 — Media Trust Project
+          TU Hackathon Fall 2026 — Wonder Gaurd
         </div>
 
         <div className="space-y-3 relative">
